@@ -1,0 +1,27 @@
+# Build outputs
+build/
+*.bin
+*.img
+*.iso
+
+# Editor/IDE specific files
+.vs/
+.vscode/
+*.swp
+*~
+.idea/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+
+# Debug files
+*.debug
+*.log
+
+# Dependency directories
+node_modules/
