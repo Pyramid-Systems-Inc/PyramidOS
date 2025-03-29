@@ -247,6 +247,12 @@ msg_hello:      db 'Hello World in green!', 0
 msg_colored:    db 'Yellow on blue background!', 0
 msg_normal:     db 'Back to normal white text.', 0
 msg_bios_error: db 'BIOS Error Occurred!', 0
+msg_prompt:     db 'Press any key...', 0
+msg_key:        db 'Key pressed: ', 0
+msg_scan:       db 'Scan code: ', 0
+msg_disk:       db 'Attempting disk read...', 0
+msg_disk_error: db 'Disk read failed!', 0
+msg_disk_ok:    db 'Disk read successful!', 0
 
 ; =============================================================================
 ; Boot Sector Padding and Signature
