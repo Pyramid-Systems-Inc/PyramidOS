@@ -122,6 +122,67 @@ get_key:
     int 0x16            ; Call BIOS keyboard service
     ret
 
+; Function: str_compare
+; Purpose: Compare two null-terminated strings
+; Input: ds:si - First string
+;        es:di - Second string
+; Output: ZF set if equal
+; Modifies: ax, si, di
+str_compare:
+    push ax
+    push si
+    push di
+
+.compare_loop:
+    mov al, [si]
+    mov ah, [di]
+    cmp al, ah
+    jne .done
+    
+    test al, al
+    jz .done
+    
+    inc si
+    inc di
+    jmp .compare_loop
+
+.done:
+    pop di
+    pop si
+    pop ax
+    ret
+
+; Function: str_to_upper
+; Purpose: Convert a null-terminated string to uppercase
+; Input: ds:si - String to convert
+; Output: None (string modified in place)
+; Modifies: al, si
+str_to_upper:
+    push ax
+    push si
+
+.convert_loop:
+    mov al, [si]
+    test al, al
+    jz .done
+    
+    cmp al, 'a'
+    jb .next_char
+    cmp al, 'z'
+    ja .next_char
+    
+    sub al, 0x20        ; Convert to uppercase
+    mov [si], al
+
+.next_char:
+    inc si
+    jmp .convert_loop
+
+.done:
+    pop si
+    pop ax
+    ret
+
 ; Function: read_sector
 ; Purpose: Read a sector from disk using BIOS services
 ; Input: ax - LBA sector number
@@ -199,6 +260,74 @@ main:
     mov si, msg_prompt
     call puts_color
 
+    ; Start command-line interface
+    call command_loop
+    jmp $               ; Hang after command loop exits
+
+; =============================================================================
+; Command Line Interface Functions
+; =============================================================================
+
+; Function: command_loop
+; Purpose: Main command processing loop
+; Input: None
+; Output: None
+; Modifies: ax, bx, si
+command_loop:
+    mov bl, 0x0E        ; Yellow text
+    mov si, msg_prompt
+    call puts_color
+
+    call get_key        ; Wait for key press
+
+    ; Check for Enter key
+    cmp ah, 0x1C        ; Enter key scan code
+    je .process_command
+
+    ; Echo character
+    mov ah, 0x0E        ; BIOS teletype output
+    int 0x10
+    jmp command_loop
+
+.process_command:
+    mov bl, 0x07        ; Light gray text
+    mov si, msg_newline
+    call puts_color
+
+    ; Process command buffer
+    mov si, command_buffer
+    call str_to_upper
+    
+    ; Check for 'HELP' command
+    mov di, cmd_help
+    call str_compare
+    je .show_help
+    
+    ; Check for 'EXIT' command
+    mov di, cmd_exit
+    call str_compare
+    je .halt_system
+    
+    ; Unknown command
+    mov bl, 0x0C        ; Light red
+    mov si, msg_unknown_cmd
+    call puts_color
+    jmp command_loop
+    
+.show_help:
+    mov bl, 0x0A        ; Light green
+    mov si, msg_help
+    call puts_color
+    jmp command_loop
+    
+.halt_system:
+    mov bl, 0x0E        ; Yellow
+    mov si, msg_shutdown
+    call puts_color
+    jmp $               ; Infinite loop
+    
+    jmp command_loop
+
     ; Wait for key press
     call get_key
     
@@ -246,13 +375,25 @@ main:
 msg_hello:      db 'Hello World in green!', 0
 msg_colored:    db 'Yellow on blue background!', 0
 msg_normal:     db 'Back to normal white text.', 0
+msg_prompt:     db 'Boot> ', 0
+msg_newline:    db 0x0D, 0x0A, 0
 msg_bios_error: db 'BIOS Error Occurred!', 0
-msg_prompt:     db 'Press any key...', 0
+msg_key_press:  db 'Press any key...', 0
 msg_key:        db 'Key pressed: ', 0
 msg_scan:       db 'Scan code: ', 0
 msg_disk:       db 'Attempting disk read...', 0
 msg_disk_error: db 'Disk read failed!', 0
 msg_disk_ok:    db 'Disk read successful!', 0
+
+; Command strings
+cmd_help:       db 'HELP', 0
+cmd_exit:       db 'EXIT', 0
+
+; Message strings
+msg_unknown_cmd: db 'Unknown command', 0
+msg_help:       db 'Available commands: HELP, EXIT', 0
+msg_shutdown:   db 'System halted', 0
+command_buffer: times 32 db 0
 
 ; =============================================================================
 ; Boot Sector Padding and Signature

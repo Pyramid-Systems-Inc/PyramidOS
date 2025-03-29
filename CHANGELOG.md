@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## [0.3]
+
+### Added
+
+- Command-line interface with HELP and EXIT commands
+- String manipulation functions (str_compare, str_to_upper)
+- Disk read functionality
+
+## [0.2]
+
+### Added
+
+- Build system updates
+- gitignore updates
+
+### Changed
+
+- Improved build process documentation
+
 ## [0.1]
 
 ### Added

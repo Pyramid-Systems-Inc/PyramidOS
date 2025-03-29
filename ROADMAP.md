@@ -2,37 +2,36 @@
 
 This document outlines the planned development path for the Pyramid Bootloader project.
 
-## Short-term Goals
+## Legacy Bootloader Enhancements
 
-- [x] Add keyboard input support
-- [x] Implement basic disk I/O operations
-- [ ] Create a simple command-line interface
-- [ ] Add memory detection functionality
-- [ ] Implement A20 line enabling
-- [ ] Add basic error messages and recovery
+- [x] Keyboard input handling
+- [x] Basic disk I/O operations (sector reading)
+- [x] Simple command-line interface
+- [ ] Memory detection
+- [ ] A20 line enabling
+- [ ] Error handling and recovery mechanisms
 
-## Medium-term Goals
+## UEFI Bootloader Implementation
 
-- [ ] Implement a two-stage bootloader
-- [ ] Add support for loading a kernel from disk
-- [ ] Create a simple file system reader
-- [ ] Implement protected mode switching
-- [ ] Add basic memory management
-- [ ] Create a simple boot menu
+- [ ] Basic UEFI application structure
+- [ ] Graphics Output Protocol (GOP) for display
+- [ ] File system access using UEFI protocols
+- [ ] Memory map retrieval
+- [ ] UEFI boot entry management
+- [ ] Configuration file parsing
 
-## Long-term Goals
+## Hybrid Image Creation
 
-- [ ] Implement UEFI boot support
-- [ ] Add multiboot specification compliance
-- [ ] Support for loading multiple OS kernels
-- [ ] Graphical boot menu with mouse support
-- [ ] Boot configuration file support
-- [ ] Network boot capabilities
+- [ ] Build system for hybrid BIOS/UEFI images
+- [ ] Boot sector handling both methods
+- [ ] Boot method detection (BIOS vs UEFI)
+- [ ] Shared code components
+- [ ] Unified configuration system
 
-## Technical Improvements
+## Technical Requirements
 
-- [ ] Improve code organization and modularity
-- [ ] Add comprehensive documentation
-- [ ] Create automated testing framework
-- [ ] Implement continuous integration
-- [ ] Add support for multiple architectures
+- [ ] Windows-compatible build process
+- [ ] Cross-platform testing capabilities
+- [ ] Modular design for maintainability
+- [ ] Code documentation
+- [ ] Automated testing framework
