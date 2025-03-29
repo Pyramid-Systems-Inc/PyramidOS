@@ -111,6 +111,55 @@ puts_color:
     pop si
     ret
 
+; Function: get_key
+; Purpose: Wait for and read a key from keyboard
+; Input: None
+; Output: al - ASCII character (0 if special key)
+;         ah - BIOS scan code
+; Modifies: ax
+get_key:
+    mov ah, 0x00        ; BIOS keyboard read function
+    int 0x16            ; Call BIOS keyboard service
+    ret
+
+; Function: read_sector
+; Purpose: Read a sector from disk using BIOS services
+; Input: ax - LBA sector number
+;        cl - Number of sectors to read (1-127)
+;        es:bx - Buffer address
+; Output: CF set on error
+; Modifies: ax, bx, cx, dx
+read_sector:
+    push dx
+    push si
+    push di
+    
+    ; Convert LBA to CHS
+    mov dx, 0
+    mov si, ax          ; Save LBA in si
+    
+    ; Calculate cylinder/head/sector
+    mov ax, si
+    mov di, 18          ; Sectors per track
+    div di              ; ax = LBA / 18, dx = LBA % 18
+    mov ch, al          ; Cylinder
+    mov dh, ah          ; Head
+    inc dx              ; Sector (1-based)
+    mov cl, dl          ; Sector number
+    
+    ; Set up disk read
+    mov ah, 0x02        ; BIOS read sector function
+    mov al, cl          ; Number of sectors to read
+    mov dl, 0x80        ; Drive number (0x80 = first hard disk)
+    
+    ; Call BIOS disk service
+    int 0x13
+    
+    pop di
+    pop si
+    pop dx
+    ret
+
 ; =============================================================================
 ; Main Program
 ; =============================================================================
@@ -145,10 +194,51 @@ main:
     mov si, msg_normal
     call puts_color
 
-    hlt                 ; Halt the CPU
+    ; Demonstrate keyboard input
+    mov bl, 0x0E        ; Yellow text
+    mov si, msg_prompt
+    call puts_color
+
+    ; Wait for key press
+    call get_key
+    
+    ; Print pressed key info
+    mov bl, 0x07        ; Light gray
+    mov si, msg_key
+    call puts_color
+    
+    ; Print scan code
+    mov bl, 0x0A        ; Light green
+    mov si, msg_scan
+    call puts_color
+    
+    ; Demonstrate disk read
+    mov bl, 0x0B        ; Light cyan
+    mov si, msg_disk
+    call puts_color
+    
+    ; Read sector 0 (boot sector) into memory at 0x8000
+    mov ax, 0x8000
+    mov es, ax
+    xor bx, bx
+    mov ax, 0           ; LBA sector 0
+    mov cl, 1           ; Read 1 sector
+    call read_sector
+    jnc .success
+    
+    ; Disk read failed
+    mov bl, 0x0C        ; Light red
+    mov si, msg_disk_error
+    call puts_color
+    jmp .halt
+    
+.success:
+    mov bl, 0x0A        ; Light green
+    mov si, msg_disk_ok
+    call puts_color
 
 .halt:
-    jmp .halt           ; Infinite loop in case halt fails
+    jmp .halt           ; Infinite loop
 
 ; =============================================================================
 ; Data Section
