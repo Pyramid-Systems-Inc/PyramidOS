@@ -18,6 +18,19 @@ This document outlines the planned development path for the Pyramid Bootloader p
   - Create minimal segment descriptors
   - Switch to protected mode
   - Initialize 32-bit environment
+- [x] Boot drive detection and preservation
+  - Save boot drive from BIOS
+  - Pass boot drive information to Stage 2
+  - Display boot drive information to user
+- [x] User interface enhancements
+  - Interactive boot prompt with countdown timer
+  - Option to proceed to Stage 2 or reboot (F1/ESC)
+  - Improved command-line interface with debugging
+  - Buffer handling and input validation
+- [x] Error handling enhancements
+  - Robust keyboard controller handling with timeout detection
+  - Improved A20 line enabling with multiple fallback methods
+  - Basic IDT setup to prevent spurious interrupts in protected mode
 - [ ] Loading kernel from filesystem
   - Implement basic FAT16/32 filesystem driver
   - Locate kernel file on disk
@@ -108,20 +121,27 @@ This document outlines the planned development path for the Pyramid Bootloader p
 
 ## Version Goals
 
-### v0.5.0 (Next Release)
+### v0.5.0 (Completed)
 - [x] Implement A20 line enabling
-  - Keyboard controller method
-  - FastA20 method
+  - Keyboard controller method with timeout handling
+  - FastA20 method as fallback
+  - Status verification
 - [x] Add protected mode transition
   - Basic GDT setup
+  - Empty IDT setup to prevent spurious interrupts
   - Initial protected mode entry
   - Basic 32-bit initialization
+- [x] Add user interface improvements
+  - Boot prompt with countdown timer
+  - Interactive continuation options (F1/ESC)
+  - Improved command-line interface in Stage 2
+  - Command buffer clearing and validation
+
+### v0.6.0 (Current Target)
 - [ ] Add basic memory management
   - Memory map generation
   - Simple memory allocation
   - Memory region tracking
-
-### v0.6.0
 - [ ] Add filesystem support (FAT16/FAT32)
   - Basic directory traversal
   - File reading capabilities
@@ -148,3 +168,17 @@ This document outlines the planned development path for the Pyramid Bootloader p
   - More system commands
   - Improved user feedback
   - Better error handling
+
+### v0.8.0
+- [ ] Hybrid boot image creation
+  - Combined BIOS/UEFI bootable media
+  - Shared configuration system
+  - Unified kernel loading process
+- [ ] Advanced memory management
+  - Memory type range registration
+  - Proper UEFI memory map handling
+  - Extended memory detection methods
+- [ ] Boot logging and diagnostics
+  - Detailed boot progress logging
+  - Error diagnostic tools
+  - Configurable verbosity levels
