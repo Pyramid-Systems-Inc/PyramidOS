@@ -1,0 +1,23 @@
+# Watcom Linker Script for Stage 2 Raw Binary
+
+FORMAT RAW BIN          # Output format
+OPTION QUIET            # Suppress verbose messages
+OPTION MAXERRORS=50     # Stop after 50 errors
+OPTION CASEEXACT        # Case-sensitive symbols
+OPTION STACK=4k         # Define stack size (adjust if needed)
+# OPTION BASE=0           # Base offset within segment (usually default 0 for raw)
+# START directive removed; entry point determined by first object file listed
+
+# Specify input object files (order can matter for raw binary)
+# Put the entry point assembly first
+FILE build/legacy/stage2_entry.obj
+FILE build/legacy/a20.obj
+FILE build/legacy/commands.obj
+FILE build/legacy/fsinfo.obj
+FILE build/legacy/input.obj
+FILE build/legacy/pmode.obj
+FILE build/legacy/print.obj
+FILE build/legacy/stage2_main.obj
+
+# Specify output file name (will be overridden by NAME in Makefile command)
+# NAME build/legacy/stage2_linked.bin

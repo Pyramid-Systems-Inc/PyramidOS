@@ -2,183 +2,133 @@
 
 This document outlines the planned development path for the Pyramid Bootloader project.
 
-## Legacy Bootloader Enhancements
+# Roadmap for Pyramid Bootloader
 
+This document outlines the planned development path for the Pyramid Bootloader project, aiming for equal support for Legacy BIOS and UEFI environments.
+
+## Legacy BIOS Bootloader
+
+### Completed
 - [x] Keyboard input handling
 - [x] Basic disk I/O operations (sector reading)
-- [x] Simple command-line interface
+- [x] Simple command-line interface (`help`, `clear`, `info`, `a20`, `pmode`, `reboot`, `fsinfo`)
 - [x] Multi-stage bootloader architecture
-- [x] Memory detection
-- [x] A20 line enabling
-  - Enable the A20 line via keyboard controller
-  - Add fallback methods (BIOS, Fast A20, System Control Port)
-  - Verify A20 line status
-- [x] Protected mode transition
-  - Implement GDT setup
-  - Create minimal segment descriptors
-  - Switch to protected mode
-  - Initialize 32-bit environment
+- [x] Memory detection (`info` command)
+- [x] A20 line enabling (`a20` command)
+- [x] Protected mode transition (`pmode` command)
 - [x] Boot drive detection and preservation
-  - Save boot drive from BIOS
-  - Pass boot drive information to Stage 2
-  - Display boot drive information to user
-- [x] User interface enhancements
-  - Interactive boot prompt with countdown timer
-  - Option to proceed to Stage 2 or reboot (F1/ESC)
-  - Improved command-line interface with debugging
-  - Buffer handling and input validation
-- [x] Error handling enhancements
-  - Robust keyboard controller handling with timeout detection
-  - Improved A20 line enabling with multiple fallback methods
-  - Basic IDT setup to prevent spurious interrupts in protected mode
+- [x] User interface enhancements (boot prompt, countdown)
+- [x] Error handling enhancements (KBC timeout, A20 fallbacks, basic IDT)
+- [x] FAT BPB parsing (`fsinfo` command)
+
+### Planned
 - [ ] Loading kernel from filesystem
-  - Implement basic FAT16/32 filesystem driver
-  - Locate kernel file on disk
-  - Load kernel to appropriate memory address
-- [ ] Graphics mode initialization
-  - VESA BIOS Extensions support
-  - Mode enumeration and selection
-  - Framebuffer initialization
+  - Implement basic FAT16/FAT32 filesystem driver (read-only)
+  - Locate kernel file on disk (e.g., via config file or fixed path)
+  - Load kernel to appropriate memory address.
+- [ ] Graphics mode initialization (optional)
+  - VESA BIOS Extensions (VBE) support.
+  - Mode enumeration and selection.
+  - Framebuffer initialization.
 - [ ] Error handling and recovery mechanisms
-  - Improved error codes and messages
-  - Recovery options for common failures
-  - Logging system for boot diagnostics
+  - Improved error codes and messages.
+  - Recovery options for common failures.
+  - Logging system for boot diagnostics (e.g., serial port output).
+- [ ] Refactor Stage 2 to C
+  - Use Open Watcom C compiler for 16-bit real mode.
+  - Separate Stage 1 (assembly) from Stage 2 (C + assembly helpers).
+  - Implement CLI, commands, and hardware interactions in C where possible.
 
-## UEFI Bootloader Implementation
+## UEFI Bootloader
 
-- [ ] Basic UEFI application structure
-  - Complete minimal EFI application framework
-  - EFI system table initialization
-  - Boot services access
+### Completed
+- [x] Basic UEFI application structure (`efi_main` entry point).
+- [x] Build system using Clang and `gnu-efi` (`Makefile`).
+- [x] Basic console output (`Print` function).
+
+### Planned
 - [ ] Graphics Output Protocol (GOP) for display
-  - Query available graphics modes
-  - Mode selection and initialization
-  - Basic text output using GOP
+  - Query available graphics modes.
+  - Mode selection and initialization.
+  - Basic text output using GOP framebuffer.
 - [ ] File system access using UEFI protocols
-  - Simple File System Protocol implementation
-  - File I/O operations
-  - Directory traversal
+  - Simple File System Protocol implementation.
+  - File I/O operations (reading files).
+  - Directory traversal.
 - [ ] Memory map retrieval
-  - Get system memory map
-  - Identify usable memory regions
-  - Reserve bootloader regions
-- [ ] UEFI boot entry management
-  - Create and modify boot entries
-  - Persistent boot configuration
-  - Boot menu implementation
+  - Get system memory map using `GetMemoryMap()`.
+  - Identify usable memory regions for the kernel.
+  - Exit boot services correctly.
+- [ ] Loading kernel from filesystem
+  - Locate kernel file on disk (e.g., via config file or fixed path).
+  - Load kernel (e.g., PE or ELF format) to appropriate memory address.
 - [ ] Configuration file parsing
-  - INI-style configuration parser
-  - Boot options configuration
-  - Boot menu customization
+  - Simple configuration file format (e.g., INI-style).
+  - Read boot options (kernel path, parameters).
+- [ ] UEFI boot entry management (optional)
+  - Create and modify boot entries.
+  - Persistent boot configuration.
+- [ ] Boot menu implementation (optional)
 
-## Hybrid Image Creation
+## Common / Build System / Integration
 
-- [x] Build system for legacy bootloader
-- [ ] Build system for UEFI bootloader
-  - Implement GNU-EFI compilation chain
-  - Generate proper PE32+ executables
-  - Ensure compatibility with common UEFI firmware
+### Completed
+- [x] Build system for legacy bootloader (`Makefile`, `build.ps1`).
+- [x] Build system for UEFI bootloader (`Makefile` using Clang).
+- [x] Windows-compatible build process for legacy (`build.ps1`).
+
+### Planned
 - [ ] Hybrid BIOS/UEFI images
-  - Combined El Torito bootable ISO
-  - Protective MBR with GPT support
-  - UEFI System Partition integration
-- [ ] Boot sector handling both methods
-  - Detection of boot environment
-  - Appropriate redirection based on boot method
-  - Shared second-stage resources
+  - Combined El Torito bootable ISO.
+  - Protective MBR with GPT support.
+  - UEFI System Partition (ESP) integration.
 - [ ] Boot method detection (BIOS vs UEFI)
-  - Runtime detection of boot environment
-  - Environment-specific initialization
-  - Common boot path after initialization
-- [ ] Shared code components
-  - Common filesystem drivers
-  - Shared configuration parsing
-  - Unified kernel loading mechanism
+  - Runtime detection of boot environment (if using a shared stage/payload).
+  - Environment-specific initialization.
+- [ ] Shared code components (Potential, requires C environment for legacy or careful linking)
+  - Common filesystem drivers (e.g., FAT).
+  - Shared configuration parsing logic.
+  - Unified kernel loading mechanism (parsing kernel format).
 - [ ] Unified configuration system
-  - Common configuration format
-  - Environment-specific extensions
-  - UEFI variable storage support
-
-## Technical Requirements
-
-- [x] Windows-compatible build process (PowerShell)
+  - Common configuration file format usable by both modes.
 - [ ] Cross-platform testing capabilities
-  - Automated QEMU testing
-  - Multiple UEFI firmware testing (OVMF, TianoCore)
-  - Hardware compatibility testing
+  - Automated QEMU testing (BIOS and UEFI via OVMF).
+  - Testing on different UEFI firmware versions/implementations.
 - [ ] Modular design for maintainability
-  - Separate core components
-  - Clear API boundaries
-  - Well-defined interfaces
+  - Separate core components (BIOS stage 1/2, UEFI app, shared libs).
+  - Clear API boundaries.
 - [ ] Code documentation
-  - Inline documentation
-  - Developer guides
-  - Architecture documentation
-- [ ] Automated testing framework
-  - Unit tests for core functions
-  - Integration tests for boot sequence
-  - UEFI compliance tests
+  - Inline documentation.
+  - Developer guides.
+  - Architecture overview.
+- [ ] Automated testing framework (optional)
+  - Unit tests for C components (e.g., filesystem, config parser).
+  - Integration tests for boot sequences.
 
-## Version Goals
+## Version Goals (Example - Adjust as needed)
 
-### v0.5.0 (Completed)
-- [x] Implement A20 line enabling
-  - Keyboard controller method with timeout handling
-  - FastA20 method as fallback
-  - Status verification
-- [x] Add protected mode transition
-  - Basic GDT setup
-  - Empty IDT setup to prevent spurious interrupts
-  - Initial protected mode entry
-  - Basic 32-bit initialization
-- [x] Add user interface improvements
-  - Boot prompt with countdown timer
-  - Interactive continuation options (F1/ESC)
-  - Improved command-line interface in Stage 2
-  - Command buffer clearing and validation
+### v0.6.x (Current Focus - Legacy)
+- [x] FAT BPB parsing (`fsinfo`).
+- [ ] Basic FAT16/FAT32 read support.
+- [ ] Load kernel file (e.g., simple binary format) from FAT partition.
+- [ ] Pass basic boot information to loaded kernel.
 
-### v0.6.0 (Current Target)
-- [ ] Add basic memory management
-  - Memory map generation
-  - Simple memory allocation
-  - Memory region tracking
-- [ ] Add filesystem support (FAT16/FAT32)
-  - Basic directory traversal
-  - File reading capabilities
-  - Boot configuration file support
-- [ ] Implement basic kernel loading
-  - ELF parser for 32-bit binaries
-  - Memory mapping for kernel
-  - Parameter passing to kernel
-- [ ] Add configuration file support
-  - Boot options configuration
-  - Hardware detection settings
-  - Boot menu customization
+### v0.7.x (Focus - UEFI Basics)
+- [ ] GOP initialization and text output.
+- [ ] Simple File System Protocol usage (find/read file).
+- [ ] Get Memory Map and exit boot services.
+- [ ] Load kernel file (e.g., simple binary or PE format) from FAT partition (ESP).
+- [ ] Pass basic boot information (memory map, framebuffer) to loaded kernel.
 
-### v0.7.0
-- [ ] Basic UEFI bootloader implementation
-  - Minimal UEFI application
-  - GOP text output
-  - Simple boot services usage
-- [ ] Graphics mode support
-  - VESA BIOS Extensions for legacy
-  - GOP for UEFI
-  - Basic graphics primitives
-- [ ] Enhanced command-line interface
-  - More system commands
-  - Improved user feedback
-  - Better error handling
+### v0.8.x (Focus - Integration & Features)
+- [ ] Hybrid boot image creation (ISO).
+- [ ] Shared configuration file parsing.
+- [ ] Kernel loading (e.g., ELF format) for both modes.
+- [ ] Basic boot menu (optional).
+- [ ] Enhanced error handling and diagnostics.
 
-### v0.8.0
-- [ ] Hybrid boot image creation
-  - Combined BIOS/UEFI bootable media
-  - Shared configuration system
-  - Unified kernel loading process
-- [ ] Advanced memory management
-  - Memory type range registration
-  - Proper UEFI memory map handling
-  - Extended memory detection methods
-- [ ] Boot logging and diagnostics
-  - Detailed boot progress logging
-  - Error diagnostic tools
-  - Configurable verbosity levels
+### Future Goals
+- [ ] More filesystem support (Ext2, etc.).
+- [ ] Network booting (PXE for legacy, UEFI protocols).
+- [ ] Security features (Secure Boot support).
+- [ ] More sophisticated boot menu / UI.
