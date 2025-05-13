@@ -6,19 +6,19 @@
 ; =============================================================================
 bits 16
 
-; Define segments (adjust names/attributes if needed for specific linker/compiler)
-segment code public align=16 class=CODE use16
-segment data public align=16 class=DATA use16 ; Assuming BSS/DATA combined for simplicity
+; Use standard NASM sections for ELF output
+section .text
+    bits 16
+    global stage2_entry_point ; Use a distinct name
+    global bios_print_char_asm ; Make the print function visible to linker
 
 ; Declare external C function (adjust name decoration based on compiler, e.g., _stage2_main)
 extern stage2_main
 
-segment code
 ; Entry point called by Stage 1
-global stage2_entry_point ; Use a distinct name
 stage2_entry_point:
     ; Set up segments for C (e.g., Small/Compact model: DS=ES=SS)
-    mov ax, data        ; Get segment address of our data segment
+    mov ax, data_seg    ; Get segment address of our data segment (using label)
     mov ds, ax
     mov es, ax
     mov ss, ax          ; Stack segment = data segment
@@ -43,12 +43,30 @@ stage2_entry_point:
     hlt
     jmp .hang
 
-; --- Data Segment ---
-segment data
-; Reserve space for stack/BSS if needed, or manage via linker script.
-; Example: Reserve 1KB for stack
-stack_bottom:
-    resb 1024
-stack_top:
+; --- BIOS Print Character Function ---
+; Called from C: void bios_print_char_asm(char c)
+; Expects character argument on the stack [bp+4] for 16-bit C calling convention
+bios_print_char_asm:
+    push bp         ; Save base pointer
+    mov bp, sp      ; Set up stack frame
 
-; Other data can go here
+    mov ah, 0x0E    ; BIOS Teletype output function
+    mov al, [bp+4]  ; Get character argument from stack
+    mov bh, 0       ; Page number 0
+    mov bl, 0x07    ; Light grey text on black background (optional)
+    int 0x10        ; Call BIOS video service
+
+    pop bp          ; Restore base pointer
+    ret             ; Return to C caller
+
+; --- Data Segment ---
+section .data align=16
+data_seg: ; Label to get the segment address
+
+; Other initialized data can go here
+
+; --- BSS Segment (Uninitialized Data) ---
+section .bss align=16
+stack_bottom:
+    resb 1024 ; Reserve 1KB for stack
+stack_top:
