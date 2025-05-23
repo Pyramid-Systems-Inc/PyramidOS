@@ -5,7 +5,7 @@
   DSC_SPECIFICATION              = 0x00010005
   OUTPUT_DIRECTORY               = Build/PyramidBLPkg
   SUPPORTED_ARCHITECTURES        = X64 # Or IA32|X64 if you want both
-  BUILD_TARGETS                  = DEBUG RELEASE
+  BUILD_TARGETS                  = DEBUG
   SKUID_IDENTIFIER               = DEFAULT
 
 [LibraryClasses]
@@ -20,6 +20,7 @@
   UefiRuntimeServicesTableLib|MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib.inf
   UefiLib|MdePkg/Library/UefiLib/UefiLib.inf
   PrintLib|MdePkg/Library/BasePrintLib/BasePrintLib.inf
+  UefiApplicationEntryPoint|MdeModulePkg/Library/UefiApplicationEntryPoint/UefiApplicationEntryPoint.inf
 
 [Components]
   # List your application's INF file
