@@ -4,7 +4,7 @@ OUTPUT_FORMAT(elf32-i386)
 
 SECTIONS {
     /* Load the kernel at 1MB */
-    . = 0x100000;
+    . = 0x10000;
 
     .text : {
         *(.text)

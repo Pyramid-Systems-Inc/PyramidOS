@@ -1,72 +1,81 @@
-; =============================================================================
-; Pyramid Bootloader - Stage 2 Entry (Minimal)
-; =============================================================================
-; Sets up environment for C code and calls stage2_main.
-; Assumes loaded at STAGE2_LOAD_SEGMENT:STAGE2_LOAD_OFFSET by Stage 1.
-; =============================================================================
+; boot/src/legacy/entry.asm
 bits 16
 
-; Use standard NASM sections for ELF output
 section .text
-    bits 16
-    global stage2_entry_point ; Use a distinct name
-    global bios_print_char_asm ; Make the print function visible to linker
+    global stage2_entry_point
+    global bios_print_char_asm
+    global bios_read_sectors_lba ; Make the disk read function visible to linker
 
-; Declare external C function (adjust name decoration based on compiler, e.g., _stage2_main)
 extern stage2_main
 
-; Entry point called by Stage 1
 stage2_entry_point:
-    ; Set up segments for C (e.g., Small/Compact model: DS=ES=SS)
-    mov ax, data_seg    ; Get segment address of our data segment (using label)
+    ; Set up segments for C
+    mov ax, data_seg
     mov ds, ax
     mov es, ax
-    mov ss, ax          ; Stack segment = data segment
+    mov ss, ax
+    mov sp, 0xFFFE ; Stack pointer at top of segment
 
-    ; Set up stack pointer (e.g., at the top of the data segment or a dedicated stack area)
-    ; Make sure this doesn't collide with code/data loaded by Stage 1.
-    ; Assuming Stage 2 code/data fits below 0xFFFF in the segment.
-    mov sp, 0xFFFE      ; Point to top of segment (adjust as needed)
-
-    ; Retrieve boot drive saved by Stage 1 (optional, if needed by C)
-    ; Stage 1 saved it at [0x7C00 + offset_of_boot_drive]. We need Stage 1's layout.
-    ; Simpler: Assume Stage 1 passed it in DL and it's still there.
-    ; Or, Stage 1 could push it before jumping.
-    ; For now, assume C code doesn't need it immediately or gets it another way.
+    ; Retrieve boot drive saved by Stage 1.
+    ; We assume Stage 1 code is still at 0x7C00.
+    ; boot_drive is at offset 68 (0x44) from 0x7C00.
+    ; A simple way: assume DL still holds the boot drive.
+    ; For the C function call, the argument goes on the stack.
+    push dx ; Push boot drive number (dl) as argument for stage2_main
 
     ; Call the main C function
     call stage2_main
 
-    ; If stage2_main returns, hang the system
 .hang:
     cli
     hlt
     jmp .hang
 
 ; --- BIOS Print Character Function ---
-; Called from C: void bios_print_char_asm(char c)
-; Expects character argument on the stack [bp+4] for 16-bit C calling convention
+; void bios_print_char_asm(char c)
 bios_print_char_asm:
-    push bp         ; Save base pointer
-    mov bp, sp      ; Set up stack frame
+    push bp
+    mov bp, sp
+    mov ah, 0x0E    ; BIOS Teletype
+    mov al, [bp+4]  ; Get char from stack
+    int 0x10
+    pop bp
+    ret
 
-    mov ah, 0x0E    ; BIOS Teletype output function
-    mov al, [bp+4]  ; Get character argument from stack
-    mov bh, 0       ; Page number 0
-    mov bl, 0x07    ; Light grey text on black background (optional)
-    int 0x10        ; Call BIOS video service
+; --- BIOS Extended Disk Read Function (LBA) ---
+; int bios_read_sectors_lba(unsigned char drive_num, void* dap_address)
+; Returns 0 on success, 1 on failure (via AX).
+bios_read_sectors_lba:
+    push bp
+    mov bp, sp
 
-    pop bp          ; Restore base pointer
-    ret             ; Return to C caller
+    ; Save registers that BIOS might corrupt
+    pusha
 
-; --- Data Segment ---
+    mov ah, 0x42         ; BIOS Extended Read function
+    mov dl, [bp+4]       ; Arg 1: drive_num
+    mov si, [bp+6]       ; Arg 2: dap_address (pointer to Disk Address Packet)
+    int 0x13             ; Call BIOS disk services
+
+    jc .error            ; Jump if Carry Flag is set (error)
+
+    ; Success
+    popa                 ; Restore registers
+    mov ax, 0            ; Return 0 for success
+    pop bp
+    ret
+
+.error:
+    ; Failure
+    popa                 ; Restore registers
+    mov ax, 1            ; Return 1 for failure
+    pop bp
+    ret
+
 section .data align=16
-data_seg: ; Label to get the segment address
+data_seg:
 
-; Other initialized data can go here
-
-; --- BSS Segment (Uninitialized Data) ---
 section .bss align=16
 stack_bottom:
-    resb 1024 ; Reserve 1KB for stack
+    resb 1024
 stack_top:
