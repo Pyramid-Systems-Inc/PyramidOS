@@ -1,10 +1,9 @@
-# boot/Makefile
+# boot/Makefile (Revised and Corrected)
 
 # Directories
 SRC_DIR = src
-BUILD_DIR = ../build # Use the top-level build directory
+BUILD_DIR = ../build
 LEGACY_BUILD_DIR = $(BUILD_DIR)/legacy_boot
-UEFI_BUILD_DIR = $(BUILD_DIR)/uefi_boot
 
 # Tools
 LEGACY_ASM = nasm
@@ -31,23 +30,18 @@ KERNEL_BIN = $(BUILD_DIR)/kernel.bin
 LEGACY_FINAL_IMG = $(BUILD_DIR)/pyramidos_legacy.img
 
 # Sector where the kernel will be written on the disk image.
-# Must match the value in stage2.c
 KERNEL_LBA_START = 60
 
 .PHONY: all legacy uefi clean
 
 # Default target
-all: legacy # UEFI target will be added later
-
-# Create build directories
-$(LEGACY_BUILD_DIR):
-	mkdir -p $(LEGACY_BUILD_DIR)
+all: legacy
 
 # --- Legacy BIOS Build ---
 legacy: $(LEGACY_FINAL_IMG)
 
 # Create the final floppy image
-$(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $(LEGACY_BUILD_DIR)
+$(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN)
 	@echo "--- Creating Legacy Boot Image ---"
 	# Create an empty 1.44MB image file filled with zeros
 	dd if=/dev/zero of=$@ bs=1K count=1440
@@ -59,22 +53,26 @@ $(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $
 	dd if=$(KERNEL_BIN) of=$@ conv=notrunc seek=$(KERNEL_LBA_START) bs=512
 	@echo "Legacy image created at $@"
 
-# Assemble Stage 1
-$(LEGACY_STAGE1_BIN): $(LEGACY_STAGE1_ASM) | $(LEGACY_BUILD_DIR)
+# Rule for building any object file from a C source file.
+# Ensures the build directory exists before compiling.
+$(LEGACY_BUILD_DIR)/%.o: $(SRC_DIR)/legacy/%.c
+	mkdir -p $(LEGACY_BUILD_DIR)
+	$(LEGACY_CC) $(CFLAGS_LEGACY) -c $< -o $@
+
+# Rule for building any object file from an assembly source file.
+$(LEGACY_BUILD_DIR)/%.o: $(SRC_DIR)/legacy/%.asm
+	mkdir -p $(LEGACY_BUILD_DIR)
+	$(LEGACY_ASM) -f elf $< -o $@
+
+# Assemble Stage 1 (special case, direct to .bin)
+$(LEGACY_STAGE1_BIN): $(LEGACY_STAGE1_ASM)
+	mkdir -p $(LEGACY_BUILD_DIR)
 	$(LEGACY_ASM) $< -f bin -o $@
 
 # Link Stage 2
-$(LEGACY_STAGE2_BIN): $(LEGACY_ENTRY_OBJ) $(LEGACY_STAGE2_OBJ) | $(LEGACY_BUILD_DIR)
+$(LEGACY_STAGE2_BIN): $(LEGACY_ENTRY_OBJ) $(LEGACY_STAGE2_OBJ)
 	$(LEGACY_LD) -T $(LEGACY_LINKER_SCRIPT) $^ -o $(LEGACY_BUILD_DIR)/stage2.elf
 	$(LEGACY_OBJCOPY) -O binary $(LEGACY_BUILD_DIR)/stage2.elf $@
-
-# Compile Stage 2 C code
-$(LEGACY_STAGE2_OBJ): $(LEGACY_STAGE2_C) | $(LEGACY_BUILD_DIR)
-	$(LEGACY_CC) $(CFLAGS_LEGACY) -c $< -o $@
-
-# Assemble Stage 2 Entry code
-$(LEGACY_ENTRY_OBJ): $(LEGACY_ENTRY_ASM) | $(LEGACY_BUILD_DIR)
-	$(LEGACY_ASM) -f elf $< -o $@
 
 # --- UEFI Build (Placeholder) ---
 uefi:

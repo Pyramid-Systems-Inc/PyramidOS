@@ -39,6 +39,8 @@ start:
     mov bx, STAGE2_LOAD_OFFSET
     int 0x13
     jc load_error       ; Jump if disk read error (carry flag set)
+    
+    mov dl, [boot_drive] ; Reload the boot drive into DL, as int 0x13 may have changed it.
 
     ; Jump to Stage 2 entry point
     jmp STAGE2_LOAD_SEGMENT:STAGE2_LOAD_OFFSET
