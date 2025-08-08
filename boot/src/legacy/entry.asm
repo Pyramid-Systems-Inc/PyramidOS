@@ -6,10 +6,12 @@ section .text
     global stage2_entry_point
     global bios_print_char_asm
     global bios_read_sectors_lba
-    global bios_print_string_asm
 
-extern stage2_main
+    ; Check if stage2_main exists
+    extern stage2_main
 
+; Align to ensure proper linking
+align 4
 stage2_entry_point:
     ; We're entered at 0x0800:0x0000 (physical 0x8000)
     ; DL contains boot drive number
@@ -21,8 +23,8 @@ stage2_entry_point:
     mov si, stage2_msg
     call print_string_local
     
-    ; Set up segments
-    mov ax, 0x0800
+    ; Set up segments for real mode
+    mov ax, 0x0800      ; We're loaded at 0x8000
     mov ds, ax
     mov es, ax
     
@@ -31,9 +33,13 @@ stage2_entry_point:
     mov ss, ax
     mov sp, 0x7C00      ; Stack from 0x0000:0x7C00 downward
     
+    ; Debug: Print before calling C
+    mov si, calling_c_msg
+    call print_string_local
+    
     ; Restore boot drive and prepare for C call
     pop dx
-    xor dh, dh          ; Clear DH to make DX = 0x00XX where XX is the drive number
+    xor dh, dh          ; Clear DH to make DX = 0x00XX
     push dx             ; Push as a word parameter for C function
     
     ; Call the main C function
@@ -55,6 +61,7 @@ stage2_entry_point:
 print_string_local:
     push ax
     push si
+    push bx
 .loop:
     lodsb
     test al, al
@@ -64,15 +71,17 @@ print_string_local:
     int 0x10
     jmp .loop
 .done:
+    pop bx
     pop si
     pop ax
     ret
 
 ; void bios_print_char_asm(char c)
+align 4
 bios_print_char_asm:
     push bp
     mov bp, sp
-    push bx             ; Preserve BX
+    push bx
     mov ah, 0x0E        ; BIOS teletype output
     mov al, [bp+4]      ; Get character parameter
     xor bh, bh          ; Page 0
@@ -82,29 +91,8 @@ bios_print_char_asm:
     pop bp
     ret
 
-; void bios_print_string_asm(const char* str)
-bios_print_string_asm:
-    push bp
-    mov bp, sp
-    push si
-    push bx
-    mov si, [bp+4]      ; Get string pointer
-.loop:
-    lodsb               ; Load byte at [SI] into AL
-    test al, al         ; Check for null terminator
-    jz .done
-    mov ah, 0x0E
-    xor bh, bh
-    mov bl, 0x07
-    int 0x10
-    jmp .loop
-.done:
-    pop bx
-    pop si
-    pop bp
-    ret
-
 ; int bios_read_sectors_lba(unsigned char drive_num, void* dap_address)
+align 4
 bios_read_sectors_lba:
     push bp
     mov bp, sp
@@ -128,7 +116,9 @@ bios_read_sectors_lba:
     pop bp
     ret
 
-; Data section
+; Data section - keep it in the same segment
 section .data
+align 4
 stage2_msg:         db 'Stage 2 entry point reached!', 0x0D, 0x0A, 0
+calling_c_msg:      db 'Calling C main function...', 0x0D, 0x0A, 0
 main_returned_msg:  db 0x0D, 0x0A, 'ERROR: stage2_main returned!', 0x0D, 0x0A, 0

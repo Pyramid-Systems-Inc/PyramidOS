@@ -4,8 +4,8 @@
  * Assumes Stage 1 loads Stage 2 to linear address 0x8000.
  */
 
-ENTRY(stage2_entry_point) /* Entry point defined in entry.asm */
-OUTPUT_FORMAT(elf32-i386) /* Match the object file format */
+ENTRY(stage2_entry_point)
+OUTPUT_FORMAT("binary")  /* Changed to binary output */
 
 SECTIONS {
     /* Start placing sections at 0x8000 */
@@ -35,5 +35,7 @@ SECTIONS {
     /DISCARD/ : {
         *(.eh_frame)
         *(.comment)
+        *(.note.*)
+        *(.debug*)
     }
 }
