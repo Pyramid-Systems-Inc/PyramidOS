@@ -5,7 +5,7 @@
  */
 
 ENTRY(stage2_entry_point)
-OUTPUT_FORMAT("binary")  /* Changed to binary output */
+OUTPUT_FORMAT(elf32-i386)
 
 SECTIONS {
     /* Start placing sections at 0x8000 */

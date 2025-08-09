@@ -41,10 +41,12 @@ LEGACY_LINKER_SCRIPT = $(SRC_DIR)/legacy/linker.ld
 # Source Files & Targets - Legacy
 LEGACY_STAGE1_ASM = $(SRC_DIR)/legacy/stage1.asm
 LEGACY_ENTRY_ASM = $(SRC_DIR)/legacy/entry.asm
+LEGACY_PMODE_ASM = $(SRC_DIR)/legacy/pmode.asm
 LEGACY_STAGE2_C = $(SRC_DIR)/legacy/stage2.c
 
 LEGACY_STAGE1_BIN = $(LEGACY_BUILD_DIR)/stage1.bin
 LEGACY_ENTRY_OBJ = $(LEGACY_BUILD_DIR)/entry.o
+LEGACY_PMODE_OBJ = $(LEGACY_BUILD_DIR)/pmode.o
 LEGACY_STAGE2_OBJ = $(LEGACY_BUILD_DIR)/stage2.o
 LEGACY_STAGE2_BIN = $(LEGACY_BUILD_DIR)/stage2.bin
 KERNEL_BIN = $(BUILD_DIR)/kernel.bin
@@ -74,7 +76,7 @@ $(LEGACY_BUILD_DIR):
 	mkdir -p $(LEGACY_BUILD_DIR)
 
 # Create the final floppy image
-$(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) | $(BUILD_DIR)
+$(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $(BUILD_DIR)
 	@echo "--- Creating Legacy Boot Image ---"
 	# Create an empty 1.44MB image file filled with zeros
 	dd if=/dev/zero of=$@ bs=1K count=1440 2>/dev/null
@@ -82,16 +84,13 @@ $(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) | $(BUILD_DIR)
 	dd if=$(LEGACY_STAGE1_BIN) of=$@ conv=notrunc bs=512 count=1 2>/dev/null
 	# Write Stage 2 starting at the second sector
 	dd if=$(LEGACY_STAGE2_BIN) of=$@ conv=notrunc seek=1 bs=512 2>/dev/null
-	# Check if kernel exists before writing
-	@if [ -f $(KERNEL_BIN) ]; then \
-		echo "Writing kernel to LBA $(KERNEL_LBA_START)"; \
-		dd if=$(KERNEL_BIN) of=$@ conv=notrunc seek=$(KERNEL_LBA_START) bs=512 2>/dev/null; \
-	else \
-		echo "Warning: Kernel not found, creating image without kernel"; \
-	fi
+	# Write kernel at sector 60
+	@echo "Writing kernel to LBA $(KERNEL_LBA_START) (sector 60)"
+	dd if=$(KERNEL_BIN) of=$@ conv=notrunc seek=$(KERNEL_LBA_START) bs=512 2>/dev/null
 	@echo "Legacy image created at $@"
-	@echo "Stage 1 size: $$(stat -c%s $(LEGACY_STAGE1_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE1_BIN) 2>/dev/null || echo 'unknown') bytes"
-	@echo "Stage 2 size: $$(stat -c%s $(LEGACY_STAGE2_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE2_BIN) 2>/dev/null || echo 'unknown') bytes"
+	@echo "Stage 1 size: $$(stat -c%s $(LEGACY_STAGE1_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE1_BIN) 2>/dev/null) bytes"
+	@echo "Stage 2 size: $$(stat -c%s $(LEGACY_STAGE2_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE2_BIN) 2>/dev/null) bytes"
+	@echo "Kernel size: $$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN) 2>/dev/null) bytes"
 
 # Create build directory if needed
 $(BUILD_DIR):
@@ -109,9 +108,13 @@ $(LEGACY_ENTRY_OBJ): $(LEGACY_ENTRY_ASM) | $(LEGACY_BUILD_DIR)
 $(LEGACY_STAGE1_BIN): $(LEGACY_STAGE1_ASM) | $(LEGACY_BUILD_DIR)
 	$(LEGACY_AS) $< -f bin -o $@
 
+# Assemble pmode.asm
+$(LEGACY_PMODE_OBJ): $(LEGACY_PMODE_ASM) | $(LEGACY_BUILD_DIR)
+	$(LEGACY_AS) $(ASFLAGS) $< -o $@
+
 # Link Stage 2
-$(LEGACY_STAGE2_BIN): $(LEGACY_ENTRY_OBJ) $(LEGACY_STAGE2_OBJ) $(LEGACY_LINKER_SCRIPT)
-	$(LEGACY_LD) $(LDFLAGS) -T $(LEGACY_LINKER_SCRIPT) $(LEGACY_ENTRY_OBJ) $(LEGACY_STAGE2_OBJ) -o $(LEGACY_BUILD_DIR)/stage2.elf
+$(LEGACY_STAGE2_BIN): $(LEGACY_ENTRY_OBJ) $(LEGACY_PMODE_OBJ) $(LEGACY_STAGE2_OBJ) $(LEGACY_LINKER_SCRIPT)
+	$(LEGACY_LD) $(LDFLAGS) -T $(LEGACY_LINKER_SCRIPT) $(LEGACY_ENTRY_OBJ) $(LEGACY_PMODE_OBJ) $(LEGACY_STAGE2_OBJ) -o $(LEGACY_BUILD_DIR)/stage2.elf
 	$(LEGACY_OBJCOPY) -O binary $(LEGACY_BUILD_DIR)/stage2.elf $@
 	@echo "Stage 2 linked successfully"
 

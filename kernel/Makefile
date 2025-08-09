@@ -1,22 +1,29 @@
 # kernel/Makefile
 
-# Tools
-CC = i686-elf-gcc
+# Check for cross-compiler, fallback to regular gcc
+ifeq ($(shell which i686-elf-gcc 2>/dev/null),)
+    CC = gcc
+    LD = ld
+    OBJCOPY = objcopy
+    $(info Note: Using native gcc. Make sure you have 32-bit support installed.)
+else
+    CC = i686-elf-gcc
+    LD = i686-elf-ld
+    OBJCOPY = i686-elf-objcopy
+endif
+
 ASM = nasm
-LD = i686-elf-ld
 
 # Build flags
-# -m32: 32-bit
-# -ffreestanding: No standard library
-# -nostdlib: No standard startup files
-# -O2: Optimization
-# -Wall -Wextra: Warnings
-CFLAGS = -m32 -ffreestanding -nostdlib -O2 -Wall -Wextra
+CFLAGS = -m32 -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-builtin -fno-stack-protector -I.
 ASMFLAGS = -f elf32
-LDFLAGS = -T linker.ld
+LDFLAGS = -melf_i386 -T linker.ld
 
 # Source files and objects
-OBJS = main.o entry.o
+C_SOURCES = main.c vga.c
+ASM_SOURCES = entry.asm
+OBJS = $(C_SOURCES:.c=.o) $(ASM_SOURCES:.asm=.o)
+
 TARGET_BIN = ../build/kernel.bin
 TARGET_ELF = ../build/kernel.elf
 
@@ -24,6 +31,8 @@ TARGET_ELF = ../build/kernel.elf
 
 # Default target
 all: $(TARGET_BIN)
+	@echo "Kernel built successfully!"
+	@stat -c "Size: %s bytes" $(TARGET_BIN) 2>/dev/null || stat -f "Size: %z bytes" $(TARGET_BIN) 2>/dev/null || echo "Size: unknown"
 
 # Link objects into an ELF file
 $(TARGET_ELF): $(OBJS) linker.ld
@@ -31,15 +40,19 @@ $(TARGET_ELF): $(OBJS) linker.ld
 
 # Convert the ELF file to a flat binary
 $(TARGET_BIN): $(TARGET_ELF)
-	i686-elf-objcopy -O binary $< $@
+	$(OBJCOPY) -O binary $< $@
 
-# Compile C source
-main.o: main.c
+# Pattern rule for C files
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Assemble assembly source
-entry.o: entry.asm
+# Pattern rule for assembly files
+%.o: %.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
+
+# Dependencies
+main.o: main.c vga.h stdint.h stddef.h
+vga.o: vga.c vga.h stdint.h stddef.h
 
 # Clean build artifacts
 clean:
