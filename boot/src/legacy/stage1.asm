@@ -1,13 +1,11 @@
 ; boot/src/legacy/stage1.asm
-; Minimal Stage 1 that loads assembly Stage 2
-
 org 0x7C00
 bits 16
 
 STAGE2_LOAD_SEGMENT equ 0x0800
 STAGE2_LOAD_OFFSET  equ 0x0000
 STAGE2_START_SECTOR equ 2
-STAGE2_SECTOR_COUNT equ 16  ; 8KB Stage 2
+STAGE2_SECTOR_COUNT equ 4  ; 2KB for Stage 2
 
 start:
     cli
@@ -21,62 +19,41 @@ start:
     ; Save boot drive
     mov [boot_drive], dl
     
-    ; Clear screen
+    ; Clear screen and show Stage 1 is running
     mov ax, 0x0003
     int 0x10
     
-    ; Print loading message
-    mov si, msg_loading
-    call print_string
+    ; Print "S1" to show Stage 1 is running
+    mov ax, 0x0E53  ; 'S'
+    int 0x10
+    mov ax, 0x0E31  ; '1'
+    int 0x10
+    mov ax, 0x0E20  ; space
+    int 0x10
     
-    ; Load Stage 2 using extended read
+    ; Load Stage 2
     mov ah, 0x42
     mov dl, [boot_drive]
     mov si, dap
     int 0x13
     jnc .success
     
-    ; Try standard read as fallback
-    mov ah, 0x02
-    mov al, STAGE2_SECTOR_COUNT
-    mov ch, 0
-    mov cl, STAGE2_START_SECTOR
-    mov dh, 0
-    mov dl, [boot_drive]
-    mov bx, STAGE2_LOAD_SEGMENT
-    mov es, bx
-    mov bx, STAGE2_LOAD_OFFSET
-    int 0x13
-    jc .error
-    
-.success:
-    mov si, msg_success
-    call print_string
-    
-    ; Jump to Stage 2 with boot drive in DL
-    mov dl, [boot_drive]
-    jmp STAGE2_LOAD_SEGMENT:STAGE2_LOAD_OFFSET
-
-.error:
-    mov si, msg_error
-    call print_string
+    ; If extended read failed, show 'E'
+    mov ax, 0x0E45  ; 'E'
+    int 0x10
     cli
     hlt
-
-print_string:
-    push ax
-    push si
-.loop:
-    lodsb
-    test al, al
-    jz .done
-    mov ah, 0x0E
+    
+.success:
+    ; Show success with '>'
+    mov ax, 0x0E3E  ; '>'
     int 0x10
-    jmp .loop
-.done:
-    pop si
-    pop ax
-    ret
+    mov ax, 0x0E20  ; space
+    int 0x10
+    
+    ; Jump to Stage 2
+    mov dl, [boot_drive]
+    jmp STAGE2_LOAD_SEGMENT:STAGE2_LOAD_OFFSET
 
 ; Data
 boot_drive: db 0
@@ -88,10 +65,6 @@ dap:
     dw STAGE2_LOAD_OFFSET
     dw STAGE2_LOAD_SEGMENT
     dq STAGE2_START_SECTOR - 1
-
-msg_loading: db 'Loading Stage 2...', 0
-msg_success: db ' OK', 0x0D, 0x0A, 0
-msg_error:   db ' FAILED!', 0x0D, 0x0A, 0
 
 times 510-($-$$) db 0
 dw 0xAA55
