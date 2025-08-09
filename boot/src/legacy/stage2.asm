@@ -5,8 +5,14 @@ org 0x8000
 ; Constants
 KERNEL_LOAD_SEG     equ 0x1000
 KERNEL_LOAD_OFF     equ 0x0000
-KERNEL_LBA_START    equ 60
-KERNEL_SECTOR_COUNT equ 8
+KERNEL_LBA          equ 60      ; LBA 60
+KERNEL_SECTOR_COUNT equ 8       ; Load 8 sectors initially
+
+; For standard floppy: 18 sectors/track, 2 heads, 80 cylinders
+; LBA 60 = C:1, H:1, S:7
+KERNEL_CYLINDER     equ 1
+KERNEL_HEAD         equ 1  
+KERNEL_SECTOR       equ 7       ; CHS sectors are 1-based
 
 ; Entry point
 stage2_start:
@@ -23,61 +29,74 @@ stage2_start:
     mov ss, ax
     mov sp, 0xFFFF
     
-    ; Print "S2" to show Stage 2 is running
-    mov ax, 0x0E53  ; 'S'
-    int 0x10
-    mov ax, 0x0E32  ; '2'
-    int 0x10
-    mov ax, 0x0E20  ; space
-    int 0x10
+    ; Print "S2 "
+    mov si, msg_s2
+    call print_string
     
-    ; Load kernel
+    ; Try Method 1: LBA read using INT 13h extensions
+    mov ah, 0x41        ; Check for extensions
+    mov bx, 0x55AA
+    mov dl, [boot_drive]
+    int 0x13
+    jc .use_chs         ; Extensions not supported
+    cmp bx, 0xAA55
+    jne .use_chs
+    
+    ; Use LBA read
+    mov si, msg_lba
+    call print_string
+    
     mov ah, 0x42
     mov dl, [boot_drive]
     mov si, kernel_dap
     int 0x13
     jnc .kernel_loaded
     
-    ; Show error 'K!'
-    mov ax, 0x0E4B  ; 'K'
-    int 0x10
-    mov ax, 0x0E21  ; '!'
-    int 0x10
-    cli
-    hlt
+.use_chs:
+    ; Use CHS read
+    mov si, msg_chs
+    call print_string
+    
+    ; Setup for kernel load
+    mov ax, KERNEL_LOAD_SEG
+    mov es, ax
+    mov bx, KERNEL_LOAD_OFF
+    
+    mov ah, 0x02                    ; Read sectors
+    mov al, KERNEL_SECTOR_COUNT     ; Number of sectors
+    mov ch, KERNEL_CYLINDER         ; Cylinder 1
+    mov cl, KERNEL_SECTOR           ; Sector 7
+    mov dh, KERNEL_HEAD             ; Head 1
+    mov dl, [boot_drive]            ; Drive
+    int 0x13
+    jc .kernel_error
     
 .kernel_loaded:
-    ; Show kernel loaded 'K>'
-    mov ax, 0x0E4B  ; 'K'
-    int 0x10
-    mov ax, 0x0E3E  ; '>'
-    int 0x10
-    mov ax, 0x0E20  ; space
-    int 0x10
+    ; Restore ES
+    mov ax, 0x0800
+    mov es, ax
+    
+    ; Success
+    mov si, msg_kernel_ok
+    call print_string
     
     ; Enable A20
     in al, 0x92
     or al, 2
     out 0x92, al
     
-    ; Show A20 enabled 'A>'
-    mov ax, 0x0E41  ; 'A'
-    int 0x10
-    mov ax, 0x0E3E  ; '>'
-    int 0x10
-    mov ax, 0x0E20  ; space
-    int 0x10
+    mov si, msg_a20
+    call print_string
     
-    ; Show entering protected mode 'P'
-    mov ax, 0x0E50  ; 'P'
-    int 0x10
+    ; Enter protected mode
+    mov si, msg_pmode
+    call print_string
     
     ; Small delay
-    mov cx, 0xFFFF
+    mov cx, 0x8000
 .delay:
     loop .delay
     
-    ; Enter protected mode
     cli
     lgdt [gdt_descriptor]
     mov eax, cr0
@@ -85,9 +104,17 @@ stage2_start:
     mov cr0, eax
     jmp 0x08:protected_mode_start
 
+.kernel_error:
+    mov si, msg_kernel_err
+    call print_string
+    ; Show error code
+    call print_hex_byte
+    cli
+    hlt
+
 bits 32
 protected_mode_start:
-    ; Setup 32-bit segments
+    ; Setup segments
     mov ax, 0x10
     mov ds, ax
     mov es, ax
@@ -96,30 +123,84 @@ protected_mode_start:
     mov ss, ax
     mov esp, 0x90000
     
-    ; Clear screen and show we're in protected mode
-    mov edi, 0xB8000
-    mov ecx, 80 * 25
-    mov ax, 0x0720  ; Black background, white text, space
-    rep stosw
-    
-    ; Write "32" at top-left to show we're in 32-bit mode
-    mov dword [0xB8000], 0x07330732  ; "32" in white
-    
-    ; Jump to kernel
+    ; Jump directly to kernel - let kernel clear screen
     jmp 0x10000
 
 bits 16
+
+; Print string
+print_string:
+    push ax
+    push si
+.loop:
+    lodsb
+    test al, al
+    jz .done
+    call print_char
+    jmp .loop
+.done:
+    pop si
+    pop ax
+    ret
+
+; Print character
+print_char:
+    push ax
+    push bx
+    mov ah, 0x0E
+    mov bx, 0x0007
+    int 0x10
+    pop bx
+    pop ax
+    ret
+
+; Print AL as hex byte
+print_hex_byte:
+    push ax
+    push cx
+    mov cl, al
+    shr al, 4
+    call print_nibble
+    mov al, cl
+    and al, 0x0F
+    call print_nibble
+    pop cx
+    pop ax
+    ret
+
+print_nibble:
+    and al, 0x0F
+    add al, '0'
+    cmp al, '9'
+    jle .print
+    add al, 7
+.print:
+    call print_char
+    ret
+
 ; Data
 boot_drive: db 0
 
+; Disk Address Packet for LBA read
 kernel_dap:
-    db 0x10, 0
-    dw KERNEL_SECTOR_COUNT
-    dw KERNEL_LOAD_OFF
-    dw KERNEL_LOAD_SEG
-    dq KERNEL_LBA_START
+    db 0x10                 ; Size
+    db 0                    ; Reserved
+    dw KERNEL_SECTOR_COUNT  ; Sectors to read
+    dw KERNEL_LOAD_OFF      ; Buffer offset
+    dw KERNEL_LOAD_SEG      ; Buffer segment
+    dq KERNEL_LBA           ; LBA
+
+; Messages
+msg_s2:         db 'S2 ', 0
+msg_lba:        db 'LBA ', 0
+msg_chs:        db 'CHS ', 0
+msg_kernel_ok:  db 'K-OK ', 0
+msg_kernel_err: db 'K-ERR:', 0
+msg_a20:        db 'A20 ', 0
+msg_pmode:      db 'PM', 0
 
 ; GDT
+align 8
 gdt_start:
     dq 0  ; Null descriptor
     ; Code segment
@@ -132,6 +213,6 @@ gdt_end:
 
 gdt_descriptor:
     dw gdt_end - gdt_start - 1
-    dd gdt_start
+    dd gdt_start + 0x8000  ; Add base address
 
 times 2048-($-$$) db 0

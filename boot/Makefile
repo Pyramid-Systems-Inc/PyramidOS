@@ -66,18 +66,35 @@ $(LEGACY_STAGE2_BIN): $(LEGACY_STAGE2_ASM) | $(LEGACY_BUILD_DIR)
 # Create the final floppy image
 $(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $(BUILD_DIR)
 	@echo "--- Creating Legacy Boot Image ---"
-	dd if=/dev/zero of=$@ bs=1K count=1440 2>/dev/null
-	dd if=$(LEGACY_STAGE1_BIN) of=$@ conv=notrunc bs=512 count=1 2>/dev/null
-	dd if=$(LEGACY_STAGE2_BIN) of=$@ conv=notrunc seek=1 bs=512 2>/dev/null
-	@echo "Writing kernel to LBA $(KERNEL_LBA_START)"
-	dd if=$(KERNEL_BIN) of=$@ conv=notrunc seek=$(KERNEL_LBA_START) bs=512 2>/dev/null
-	@echo "Legacy image created at $@"
-	@echo "Stage 1 size: 512 bytes"
-	@SIZE2=$$(stat -c%s $(LEGACY_STAGE2_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE2_BIN) 2>/dev/null); \
-	echo "Stage 2 size: $$SIZE2 bytes"
-	@SIZEK=$$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN) 2>/dev/null); \
-	echo "Kernel size: $$SIZEK bytes"
+	# Create an empty 1.44MB image
+	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
+	# Write Stage 1 to first sector
+	dd if=$(LEGACY_STAGE1_BIN) of=$@ bs=512 count=1 conv=notrunc status=none
+	# Write Stage 2 starting at sector 2 (seek=1 means skip 1 sector)
+	dd if=$(LEGACY_STAGE2_BIN) of=$@ bs=512 seek=1 conv=notrunc status=none
+	# Write kernel at sector 60
+	dd if=$(KERNEL_BIN) of=$@ bs=512 seek=60 conv=notrunc status=none
+	@echo "Disk image created successfully"
+	@echo "Stage 1: 512 bytes at sector 0"
+	@STAGE2_SIZE=$$(stat -c%s $(LEGACY_STAGE2_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE2_BIN)); \
+	STAGE2_SECTORS=$$(($$STAGE2_SIZE / 512 + ($$STAGE2_SIZE % 512 != 0))); \
+	echo "Stage 2: $$STAGE2_SIZE bytes ($$STAGE2_SECTORS sectors) at sector 1"
+	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN)); \
+	KERNEL_SECTORS=$$(($$KERNEL_SIZE / 512 + ($$KERNEL_SIZE % 512 != 0))); \
+	echo "Kernel: $$KERNEL_SIZE bytes ($$KERNEL_SECTORS sectors) at sector 60"
 
+
+# Add this to boot/Makefile
+hexdump: $(LEGACY_FINAL_IMG)
+	@echo "=== Disk Image Layout ==="
+	@echo "Sector 0 (Stage 1):"
+	@hexdump -C $(LEGACY_FINAL_IMG) -n 512
+	@echo ""
+	@echo "Sector 1-8 (Stage 2):"
+	@hexdump -C $(LEGACY_FINAL_IMG) -s 512 -n 64
+	@echo ""
+	@echo "Sector 60 (Kernel):"
+	@hexdump -C $(LEGACY_FINAL_IMG) -s 30720 -n 64
 # Create build directory if needed
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
