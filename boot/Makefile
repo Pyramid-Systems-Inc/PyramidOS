@@ -64,6 +64,7 @@ $(LEGACY_STAGE2_BIN): $(LEGACY_STAGE2_ASM) | $(LEGACY_BUILD_DIR)
 	echo "Stage 2 size: $$SIZE bytes"
 
 # Create the final floppy image
+# Create the final floppy image
 $(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $(BUILD_DIR)
 	@echo "--- Creating Legacy Boot Image ---"
 	# Create an empty 1.44MB image
@@ -81,7 +82,8 @@ $(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $
 	echo "Stage 2: $$STAGE2_SIZE bytes ($$STAGE2_SECTORS sectors) at sector 1"
 	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN)); \
 	KERNEL_SECTORS=$$(($$KERNEL_SIZE / 512 + ($$KERNEL_SIZE % 512 != 0))); \
-	echo "Kernel: $$KERNEL_SIZE bytes ($$KERNEL_SECTORS sectors) at sector 60"
+	echo "Kernel: $$KERNEL_SIZE bytes ($$KERNEL_SECTORS sectors) at sector 60"; \
+	echo "*** IMPORTANT: Update KERNEL_SECTOR_COUNT in stage2.asm to at least $$KERNEL_SECTORS ***"
 
 
 # Add this to boot/Makefile
