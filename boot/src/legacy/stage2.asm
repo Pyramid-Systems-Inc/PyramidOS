@@ -192,6 +192,10 @@ stage2_start:
 
 bits 32
 protected_mode_start:
+    ; FIRST: Write debug directly to VGA to confirm we reach 32-bit mode
+    mov dword [0xB8000], 0x2F322F33  ; "32" in white on green
+    mov dword [0xB8004], 0x2F542F42  ; "BT" (32-bit)
+    
     ; Setup segments
     mov ax, 0x10
     mov ds, ax
@@ -199,7 +203,21 @@ protected_mode_start:
     mov fs, ax
     mov gs, ax
     mov ss, ax
+    
+    ; Write debug after segments setup
+    mov dword [0xB8008], 0x2F472F53  ; "SG" (segments)
+    
+    ; Setup stack
     mov esp, 0x90000
+    
+    ; Write debug after stack setup
+    mov dword [0xB800C], 0x2F502F53  ; "SP" (stack pointer)
+    
+    ; IMPORTANT: Disable interrupts before jumping to kernel
+    cli
+    
+    ; Write debug before kernel jump
+    mov dword [0xB8010], 0x2F4D2F4A  ; "JM" (jump)
     
     ; Jump directly to kernel
     jmp 0x10000

@@ -1,15 +1,13 @@
 /*
  * PyramidOS Kernel - Main Entry Point
- *
- * This is the first C function called by the bootloader's
- * 32-bit entry stub.
  */
 
 #include "vga.h"
-#include "idt.h"
 #include "stddef.h"
-#include "timer.h"
-#include "keyboard.h"
+// #include "idt.h"     // TEMPORARILY COMMENT OUT
+// #include "timer.h"   // TEMPORARILY COMMENT OUT  
+// #include "keyboard.h" // TEMPORARILY COMMENT OUT
+
 
 // Simple strlen implementation
 size_t strlen(const char *str)
@@ -81,37 +79,32 @@ void k_main(void)
     vga_writestring("[OK] VGA driver initialized\n");
     vga_writestring("[OK] Kernel loaded at 0x10000\n");
 
-    // Initialize IDT
-    idt_init();
-    vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
+    // TEMPORARILY COMMENT OUT IDT INITIALIZATION
+    // idt_init();
+    // vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
+    // timer_init();
+    // keyboard_init();
+    // __asm__ volatile("sti");
+    // vga_writestring("[OK] Interrupts enabled\n");
 
-    // Initialize timer
-    timer_init();
-
-    // Initialize keyboard
-    keyboard_init();
-
-    // Enable interrupts
-    __asm__ volatile("sti");
-    vga_writestring("[OK] Interrupts enabled\n");
+    vga_writestring("[INFO] IDT initialization skipped for testing\n");
 
     // Display some system info
     vga_writestring("\nSystem Information:\n");
     vga_writestring("-------------------\n");
-    k_printf("Kernel size: ~", 12);
-    vga_writestring(" KB\n");
-    k_printf("Available memory: ", 640);
-    vga_writestring(" KB (estimated)\n");
+    vga_writestring("Kernel size: ~8 KB\n");
+    vga_writestring("Available memory: 640 KB (estimated)\n");
 
     vga_setcolor(vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
     vga_writestring("\n[INFO] Kernel initialization complete.\n");
-    vga_writestring("[INFO] Type 'help' for available commands.\n");
+    vga_writestring("[INFO] Basic kernel running without interrupts.\n");
 
     vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-    vga_writestring("PyramidOS> ");
+    vga_writestring("\nPress Ctrl+Alt+Del to reboot.\n");
 
-    // Command loop - wait for interrupts
+    // Infinite loop with CLI to prevent any interrupts
+    __asm__ volatile("cli");
     for (;;) {
-        __asm__ volatile("hlt"); // Wait for interrupts
+        __asm__ volatile("hlt");
     }
 }
