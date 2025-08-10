@@ -1,11 +1,9 @@
 /*
  * PyramidOS Kernel - Main Entry Point
- *
- * This is the first C function called by the bootloader's
- * 32-bit entry stub.
  */
 
 #include "vga.h"
+#include "idt.h"
 
 // Simple strlen implementation
 size_t strlen(const char *str)
@@ -77,6 +75,14 @@ void k_main(void)
     vga_writestring("[OK] VGA driver initialized\n");
     vga_writestring("[OK] Kernel loaded at 0x10000\n");
 
+    // Initialize IDT
+    idt_init();
+    vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
+
+    // Enable interrupts
+    __asm__ volatile("sti");
+    vga_writestring("[OK] Interrupts enabled\n");
+
     // Display some system info
     vga_writestring("\nSystem Information:\n");
     vga_writestring("-------------------\n");
@@ -86,11 +92,18 @@ void k_main(void)
     vga_writestring(" KB (estimated)\n");
 
     vga_setcolor(vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
-    vga_writestring("\n[!] Kernel initialization complete. System halted.\n");
+    vga_writestring("\n[INFO] Kernel initialization complete.\n");
+    vga_writestring("[INFO] Testing exception handling...\n");
 
-    // Infinite loop to halt the CPU
-    for (;;)
-    {
-        __asm__ volatile("hlt");
+    vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
+
+    // Test division by zero exception (uncomment to test)
+    // int test = 1 / 0;  // This should trigger our exception handler
+
+    vga_writestring("PyramidOS> ");
+
+    // Simple command loop (instead of immediate halt)
+    for (;;) {
+        __asm__ volatile("hlt"); // Wait for interrupts
     }
 }
