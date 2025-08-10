@@ -1,6 +1,7 @@
 #include "timer.h"
 #include "vga.h"
 #include "stdint.h"
+#include "stddef.h"
 
 // Timer variables
 static uint32_t timer_ticks = 0;
@@ -12,17 +13,28 @@ static uint32_t seconds = 0;
 #define PIT_FREQUENCY    1193180  // Base frequency of PIT
 #define TARGET_FREQUENCY 100      // 100 Hz (10ms intervals)
 
+// Helper functions for port I/O
+static inline void outb(uint16_t port, uint8_t value) {
+    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
+}
+
+static inline uint8_t inb(uint16_t port) {
+    uint8_t result;
+    __asm__ volatile("inb %1, %0" : "=a"(result) : "Nd"(port));
+    return result;
+}
+
 void timer_init(void) {
     // Calculate the divisor for our target frequency
     uint32_t divisor = PIT_FREQUENCY / TARGET_FREQUENCY;
     
     // Send command to PIT
     // Mode 3 (square wave), channel 0, binary mode
-    __asm__ volatile("outb %0, %1" : : "a"(0x36), "Nd"(PIT_COMMAND_PORT));
+    outb(PIT_COMMAND_PORT, 0x36);
     
     // Send divisor (low byte then high byte)
-    __asm__ volatile("outb %0, %1" : : "a"((uint8_t)(divisor & 0xFF)), "Nd"(PIT_DATA_PORT_0));
-    __asm__ volatile("outb %0, %1" : : "a"((uint8_t)((divisor >> 8) & 0xFF)), "Nd"(PIT_DATA_PORT_0));
+    outb(PIT_DATA_PORT_0, (uint8_t)(divisor & 0xFF));
+    outb(PIT_DATA_PORT_0, (uint8_t)((divisor >> 8) & 0xFF));
     
     vga_writestring("[OK] Timer initialized (100 Hz)\n");
 }
@@ -36,8 +48,7 @@ void irq_timer_handler(void) {
         
         // Optional: Display timer every 5 seconds for debugging
         if (seconds % 5 == 0) {
-            // Save current cursor position and color
-            static size_t old_row = 0, old_col = 0;
+            // Save current color
             uint8_t old_color = vga_get_color();
             
             // Display uptime in top-right corner
@@ -50,7 +61,7 @@ void irq_timer_handler(void) {
             vga_writestring(time_str);
             vga_writestring("s    ");
             
-            // Restore cursor and color
+            // Restore color
             vga_setcolor(old_color);
             // Note: We don't restore cursor position to avoid interfering with output
         }

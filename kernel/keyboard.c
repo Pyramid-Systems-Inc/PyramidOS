@@ -1,10 +1,22 @@
 #include "keyboard.h"
 #include "vga.h"
 #include "stdint.h"
+#include "stddef.h"
 
 // Keyboard constants
 #define KEYBOARD_DATA_PORT    0x60
 #define KEYBOARD_STATUS_PORT  0x64
+
+// Helper functions for port I/O
+static inline void outb(uint16_t port, uint8_t value) {
+    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
+}
+
+static inline uint8_t inb(uint16_t port) {
+    uint8_t result;
+    __asm__ volatile("inb %1, %0" : "=a"(result) : "Nd"(port));
+    return result;
+}
 
 // Simple US QWERTY scancode to ASCII map (scancode set 1)
 static const char scancode_to_ascii[] = {
@@ -42,7 +54,7 @@ void irq_keyboard_handler(void) {
     uint8_t scancode;
     
     // Read scancode from keyboard data port
-    __asm__ volatile("inb %1, %0" : "=a"(scancode) : "Nd"(KEYBOARD_DATA_PORT));
+    scancode = inb(KEYBOARD_DATA_PORT);
     
     // Handle key release (bit 7 set)
     if (scancode & 0x80) {
@@ -159,8 +171,10 @@ void process_command(const char* command) {
     else if (strcmp(command, "crash") == 0) {
         vga_writestring("Testing exception handling...\n");
         // Trigger division by zero
-        int x = 1 / 0;
-        (void)x;  // Suppress unused variable warning
+        volatile int x = 1;
+        volatile int y = 0;
+        volatile int z = x / y;
+        (void)z;  // Suppress unused variable warning
     }
     else {
         vga_writestring("Unknown command: ");
