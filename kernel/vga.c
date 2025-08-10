@@ -116,3 +116,7 @@ void vga_set_cursor(size_t x, size_t y)
         terminal_row = y;
     }
 }
+uint8_t vga_get_color(void)
+{
+    return terminal_color;
+}

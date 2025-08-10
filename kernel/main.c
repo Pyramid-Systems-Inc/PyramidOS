@@ -7,7 +7,9 @@
 
 #include "vga.h"
 #include "idt.h"
-#include "stddef.h"  // Add this include
+#include "stddef.h"
+#include "timer.h"
+#include "keyboard.h"
 
 // Simple strlen implementation
 size_t strlen(const char *str)
@@ -83,6 +85,12 @@ void k_main(void)
     idt_init();
     vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
 
+    // Initialize timer
+    timer_init();
+
+    // Initialize keyboard
+    keyboard_init();
+
     // Enable interrupts
     __asm__ volatile("sti");
     vga_writestring("[OK] Interrupts enabled\n");
@@ -90,23 +98,19 @@ void k_main(void)
     // Display some system info
     vga_writestring("\nSystem Information:\n");
     vga_writestring("-------------------\n");
-    k_printf("Kernel size: ~", 8);
+    k_printf("Kernel size: ~", 12);
     vga_writestring(" KB\n");
     k_printf("Available memory: ", 640);
     vga_writestring(" KB (estimated)\n");
 
     vga_setcolor(vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
     vga_writestring("\n[INFO] Kernel initialization complete.\n");
-    vga_writestring("[INFO] Testing exception handling...\n");
+    vga_writestring("[INFO] Type 'help' for available commands.\n");
 
     vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-
-    // Test division by zero exception (uncomment to test)
-    // int test = 1 / 0;  // This should trigger our exception handler
-
     vga_writestring("PyramidOS> ");
 
-    // Simple command loop (instead of immediate halt)
+    // Command loop - wait for interrupts
     for (;;) {
         __asm__ volatile("hlt"); // Wait for interrupts
     }

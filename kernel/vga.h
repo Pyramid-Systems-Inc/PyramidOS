@@ -42,6 +42,7 @@ void vga_writestring(const char *data);
 void vga_clear(void);
 void vga_set_cursor(size_t x, size_t y);
 void vga_scroll(void);
+uint8_t vga_get_color(void);
 
 // Helper function to create a VGA color byte
 static inline uint8_t vga_entry_color(enum vga_color fg, enum vga_color bg)
