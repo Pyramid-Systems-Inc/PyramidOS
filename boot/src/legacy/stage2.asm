@@ -2,11 +2,11 @@
 bits 16
 org 0x8000
 
-; Constants
+;Constants
 KERNEL_LOAD_SEG     equ 0x1000
 KERNEL_LOAD_OFF     equ 0x0000
 KERNEL_LBA          equ 60      ; LBA 60
-KERNEL_SECTOR_COUNT equ 32       ; Load 32 sectors (16KB) - should be enough
+KERNEL_SECTOR_COUNT equ 16      ; *** CHANGE THIS FROM 8 to 16 ***
 
 ; For standard floppy: 18 sectors/track, 2 heads, 80 cylinders
 ; LBA 60 = C:1, H:1, S:7
