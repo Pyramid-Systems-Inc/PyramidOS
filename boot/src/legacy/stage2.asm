@@ -80,6 +80,10 @@ stage2_start:
     mov si, msg_kernel_ok
     call print_string
     
+    ; Add debug: Show kernel size loaded
+    mov si, msg_debug1
+    call print_string
+    
     ; Enable A20
     in al, 0x92
     or al, 2
@@ -92,6 +96,10 @@ stage2_start:
     mov si, msg_pmode
     call print_string
     
+    ; Add debug: About to load GDT
+    mov si, msg_debug2
+    call print_string
+    
     ; Small delay
     mov cx, 0x8000
 .delay:
@@ -99,11 +107,15 @@ stage2_start:
     
     cli
     lgdt [gdt_descriptor]
+    
+    ; Add debug: GDT loaded
+    mov si, msg_debug3
+    call print_string
+    
     mov eax, cr0
     or eax, 1
     mov cr0, eax
     jmp 0x08:protected_mode_start
-
 .kernel_error:
     mov si, msg_kernel_err
     call print_string
@@ -197,7 +209,10 @@ msg_chs:        db 'CHS ', 0
 msg_kernel_ok:  db 'K-OK ', 0
 msg_kernel_err: db 'K-ERR:', 0
 msg_a20:        db 'A20 ', 0
-msg_pmode:      db 'PM', 0
+msg_pmode:      db 'PM ', 0
+msg_debug1:     db 'KLD ', 0    ; Kernel loaded
+msg_debug2:     db 'GDT ', 0    ; About to load GDT
+msg_debug3:     db 'PGDT ', 0   ; GDT loaded
 
 ; GDT
 align 8
