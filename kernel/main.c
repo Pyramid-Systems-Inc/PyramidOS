@@ -1,9 +1,13 @@
 /*
  * PyramidOS Kernel - Main Entry Point
+ *
+ * This is the first C function called by the bootloader's
+ * 32-bit entry stub.
  */
 
 #include "vga.h"
 #include "idt.h"
+#include "stddef.h"  // Add this include
 
 // Simple strlen implementation
 size_t strlen(const char *str)

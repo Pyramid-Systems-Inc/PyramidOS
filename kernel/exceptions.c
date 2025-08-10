@@ -1,5 +1,6 @@
 #include "idt.h"
 #include "vga.h"
+#include "stddef.h"  // Add this include for itoa declaration
 
 // Exception names
 static const char* exception_messages[] = {
@@ -69,31 +70,5 @@ void exception_handler(uint32_t interrupt_number, uint32_t error_code) {
     // Infinite loop as backup
     for (;;) {
         __asm__ volatile("hlt");
-    }
-}
-
-// Simple integer to string conversion (add to kernel if not already present)
-void itoa(int value, char *str, int base) {
-    char *ptr = str;
-    char *ptr1 = str;
-    char tmp_char;
-    int tmp_value;
-
-    do {
-        tmp_value = value;
-        value /= base;
-        *ptr++ = "0123456789abcdef"[tmp_value - value * base];
-    } while (value);
-
-    if (tmp_value < 0 && base == 10) {
-        *ptr++ = '-';
-    }
-
-    *ptr-- = '\0';
-
-    while (ptr1 < ptr) {
-        tmp_char = *ptr;
-        *ptr-- = *ptr1;
-        *ptr1++ = tmp_char;
     }
 }

@@ -13,4 +13,8 @@ typedef int ptrdiff_t;
 // Offset of member in structure
 #define offsetof(type, member) ((size_t)&((type *)0)->member)
 
+// Common utility functions
+extern void itoa(int value, char *str, int base);
+extern size_t strlen(const char *str);
+
 #endif /* STDDEF_H */
