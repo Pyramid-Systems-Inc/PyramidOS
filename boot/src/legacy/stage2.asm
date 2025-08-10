@@ -9,6 +9,7 @@ KERNEL_LBA          equ 60
 KERNEL_SECTOR_COUNT equ 16      ; Load 16 sectors (8KB)
 
 ; For standard floppy: 18 sectors/track, 2 heads, 80 cylinders
+; LBA 60 = C:1, H:1, S:7
 KERNEL_CYLINDER     equ 1
 KERNEL_HEAD         equ 1  
 KERNEL_SECTOR       equ 7       
@@ -18,12 +19,12 @@ stage2_start:
     ; Save boot drive
     mov [boot_drive], dl
     
-    ; Setup segments - FIX: Use flat addressing to match org 0x8000
-    xor ax, ax          ; Set segments to 0x0000 for flat addressing
+    ; Setup segments
+    xor ax, ax          
     mov ds, ax
     mov es, ax
     
-    ; Setup stack in a safe area
+    ; Setup stack
     mov ax, 0x0700
     mov ss, ax
     mov sp, 0xFFFF
@@ -33,11 +34,11 @@ stage2_start:
     call print_string
     
     ; Try Method 1: LBA read using INT 13h extensions
-    mov ah, 0x41        ; Check for extensions
+    mov ah, 0x41        
     mov bx, 0x55AA
     mov dl, [boot_drive]
     int 0x13
-    jc .use_chs         ; Extensions not supported
+    jc .use_chs         
     cmp bx, 0xAA55
     jne .use_chs
     
@@ -51,27 +52,113 @@ stage2_start:
     int 0x13
     jnc .kernel_loaded
     
+    ; LBA failed, show error and try CHS
+    mov si, msg_lba_err
+    call print_string
+    mov al, ah
+    call print_hex_byte
+    
 .use_chs:
-    ; Use CHS read
+    ; Use CHS read - READ IN SMALLER CHUNKS
     mov si, msg_chs
     call print_string
     
-    ; Setup for kernel load
+    ; Reset floppy controller first
+    mov ah, 0x00
+    mov dl, [boot_drive]
+    int 0x13
+    
+    ; Read kernel in multiple chunks to avoid track boundary issues
+    mov cx, 0                   ; Sectors read counter
+    mov bx, KERNEL_LOAD_OFF     ; Current offset
+    
+.read_loop:
+    ; Setup ES:BX for current read
+    mov ax, KERNEL_LOAD_SEG
+    mov es, ax
+    
+    ; Calculate how many sectors to read this time (max 8 to stay safe)
+    mov ax, KERNEL_SECTOR_COUNT
+    sub ax, cx                  ; Remaining sectors
+    cmp ax, 8                   ; Read max 8 sectors at a time
+    jle .read_chunk
+    mov ax, 8
+    
+.read_chunk:
+    ; Save registers
+    push ax
+    push bx  
+    push cx
+    
+    ; Read sectors
+    mov ah, 0x02                ; Read sectors function
+    ; AL already has sector count
+    mov ch, KERNEL_CYLINDER     ; Cylinder 1
+    mov cl, KERNEL_SECTOR       ; Start sector 7
+    add cl, cl                  ; Add sectors already read
+    mov dh, KERNEL_HEAD         ; Head 1
+    mov dl, [boot_drive]        ; Drive
+    
+    int 0x13
+    jc .chs_error
+    
+    ; Restore registers and update counters
+    pop cx
+    pop bx
+    pop ax
+    
+    add cx, ax                  ; Update sectors read
+    shl ax, 9                   ; Convert sectors to bytes (×512)
+    add bx, ax                  ; Update buffer offset
+    
+    ; Check if we've read all sectors
+    cmp cx, KERNEL_SECTOR_COUNT
+    jl .read_loop
+    
+    ; Success!
+    jmp .kernel_loaded
+    
+.chs_error:
+    pop cx
+    pop bx
+    pop ax
+    mov si, msg_chs_err
+    call print_string
+    mov al, ah
+    call print_hex_byte
+    
+    ; Try a simple single-sector read as test
+    mov si, msg_test
+    call print_string
+    
     mov ax, KERNEL_LOAD_SEG
     mov es, ax
     mov bx, KERNEL_LOAD_OFF
     
-    mov ah, 0x02                    ; Read sectors
-    mov al, KERNEL_SECTOR_COUNT     ; Number of sectors
-    mov ch, KERNEL_CYLINDER         ; Cylinder 1
-    mov cl, KERNEL_SECTOR           ; Sector 7
-    mov dh, KERNEL_HEAD             ; Head 1
-    mov dl, [boot_drive]            ; Drive
+    mov ah, 0x02                ; Read sectors
+    mov al, 1                   ; Just 1 sector
+    mov ch, KERNEL_CYLINDER     ; Cylinder 1
+    mov cl, KERNEL_SECTOR       ; Sector 7
+    mov dh, KERNEL_HEAD         ; Head 1
+    mov dl, [boot_drive]        ; Drive
     int 0x13
-    jc .kernel_error
+    jc .final_error
+    
+    ; Single sector worked, continue with simplified kernel
+    mov si, msg_partial
+    call print_string
+    jmp .kernel_loaded
+    
+.final_error:
+    mov si, msg_final_err
+    call print_string
+    mov al, ah
+    call print_hex_byte
+    cli
+    hlt
     
 .kernel_loaded:
-    ; Restore ES to 0 for flat addressing
+    ; Restore ES
     xor ax, ax
     mov es, ax
     
@@ -102,14 +189,6 @@ stage2_start:
     or eax, 1
     mov cr0, eax
     jmp 0x08:protected_mode_start
-
-.kernel_error:
-    mov si, msg_kernel_err
-    call print_string
-    ; Show error code
-    call print_hex_byte
-    cli
-    hlt
 
 bits 32
 protected_mode_start:
@@ -194,7 +273,11 @@ msg_s2:         db 'S2 ', 0
 msg_lba:        db 'LBA ', 0
 msg_chs:        db 'CHS ', 0
 msg_kernel_ok:  db 'K-OK ', 0
-msg_kernel_err: db 'K-ERR:', 0
+msg_lba_err:    db 'LBA-ERR:', 0
+msg_chs_err:    db 'CHS-ERR:', 0
+msg_test:       db 'TEST ', 0
+msg_partial:    db 'PART ', 0
+msg_final_err:  db 'FINAL-ERR:', 0
 msg_a20:        db 'A20 ', 0
 msg_pmode:      db 'PM', 0
 
@@ -212,6 +295,6 @@ gdt_end:
 
 gdt_descriptor:
     dw gdt_end - gdt_start - 1
-    dd gdt_start + 0x8000  ; Absolute address since we're using flat addressing
+    dd gdt_start + 0x8000
 
 times 2048-($-$$) db 0
