@@ -5,9 +5,9 @@
 // Initialize the PIC (Programmable Interrupt Controller)
 void pic_init(void)
 {
-    // Save masks
-    uint8_t a1 = inb(PIC1_DATA);
-    uint8_t a2 = inb(PIC2_DATA);
+    // Save masks (not used in this implementation, but good practice)
+    (void)inb(PIC1_DATA);  // Read and discard current mask
+    (void)inb(PIC2_DATA);  // Read and discard current mask
 
     // Start initialization sequence (in cascade mode)
     outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);

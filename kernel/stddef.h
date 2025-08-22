@@ -13,12 +13,4 @@ typedef int ptrdiff_t;
 // Offset of member in structure
 #define offsetof(type, member) ((size_t)&((type *)0)->member)
 
-// Common utility functions
-extern void itoa(int value, char *str, int base);
-extern size_t strlen(const char *str);
-
-// Forward declarations for timer functions (to avoid circular includes)
-extern uint32_t timer_get_seconds(void);
-extern uint32_t timer_get_ticks(void);
-
 #endif /* STDDEF_H */
