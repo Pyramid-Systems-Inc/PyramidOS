@@ -219,8 +219,8 @@ protected_mode_start:
     ; Write debug before kernel jump
     mov dword [0xB8010], 0x2F4D2F4A  ; "JM" (jump)
     
-    ; Jump directly to kernel
-    jmp 0x10000
+    ; Jump to kernel with proper segment (code segment 0x08)
+    jmp 0x08:0x10000
 
 bits 16
 
@@ -313,6 +313,6 @@ gdt_end:
 
 gdt_descriptor:
     dw gdt_end - gdt_start - 1
-    dd gdt_start + 0x8000
+    dd 0x8000 + gdt_start
 
 times 2048-($-$$) db 0

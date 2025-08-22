@@ -21,6 +21,13 @@ void k_printf(const char *format, int value)
 // Kernel's main function
 void k_main(void)
 {
+    // Write early debug message directly to VGA memory
+    volatile uint16_t *vga = (volatile uint16_t*)0xB8000;
+    vga[12] = 0x2F4D;  // 'M' in white on green
+    vga[13] = 0x2F41;  // 'A' 
+    vga[14] = 0x2F49;  // 'I'
+    vga[15] = 0x2F4E;  // 'N'
+    
     // Initialize VGA text mode
     vga_initialize();
 

@@ -18,7 +18,11 @@ _start:
     
     ; Debug: Write "STK" to show stack is set up
     mov dword [0xB801C], 0x2F542F53  ; "ST"
-    mov dword [0xB8020], 0x2F004B   ; "K "
+    mov dword [0xB8020], 0x2F202F4B  ; "K " (fixed the encoding)
+    
+    ; Ensure we have a valid stack
+    test esp, esp
+    jz .hang
     
     ; Call the C kernel's main function
     call k_main
