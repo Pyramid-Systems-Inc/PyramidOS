@@ -1,5 +1,6 @@
 #include "idt.h"
 #include "vga.h"
+#include "pic.h"
 
 // IDT table and pointer
 static struct idt_entry idt[IDT_ENTRIES];
@@ -10,6 +11,9 @@ extern void idt_load(uint32_t idt_ptr_address);
 
 void idt_init(void) {
     vga_writestring("[IDT] Initializing Interrupt Descriptor Table...\n");
+    
+    // Initialize PIC first
+    pic_init();
     
     // Set up IDT pointer
     idt_pointer.limit = (sizeof(struct idt_entry) * IDT_ENTRIES) - 1;
@@ -78,6 +82,10 @@ void idt_init(void) {
     
     // Load IDT
     idt_load((uint32_t)&idt_pointer);
+    
+    // Enable timer and keyboard IRQs
+    pic_unmask_irq(0);  // Timer (IRQ 0)
+    pic_unmask_irq(1);  // Keyboard (IRQ 1)
     
     vga_writestring("[IDT] Interrupt Descriptor Table loaded\n");
 }

@@ -3,54 +3,11 @@
  */
 
 #include "vga.h"
+#include "idt.h"
+#include "timer.h"
+#include "keyboard.h"
+#include "string.h"
 #include "stddef.h"
-// #include "idt.h"     // TEMPORARILY COMMENT OUT
-// #include "timer.h"   // TEMPORARILY COMMENT OUT  
-// #include "keyboard.h" // TEMPORARILY COMMENT OUT
-
-
-// Simple strlen implementation
-size_t strlen(const char *str)
-{
-    size_t len = 0;
-    while (str[len])
-    {
-        len++;
-    }
-    return len;
-}
-
-// Simple itoa for converting integers to strings
-void itoa(int value, char *str, int base)
-{
-    char *ptr = str;
-    char *ptr1 = str;
-    char tmp_char;
-    int tmp_value;
-
-    do
-    {
-        tmp_value = value;
-        value /= base;
-        *ptr++ = "0123456789abcdef"[tmp_value - value * base];
-    } while (value);
-
-    // Add negative sign if needed
-    if (tmp_value < 0 && base == 10)
-    {
-        *ptr++ = '-';
-    }
-
-    *ptr-- = '\0';
-
-    // Reverse the string
-    while (ptr1 < ptr)
-    {
-        tmp_char = *ptr;
-        *ptr-- = *ptr1;
-        *ptr1++ = tmp_char;
-    }
-}
 
 // Print a formatted message (simple version)
 void k_printf(const char *format, int value)
@@ -79,15 +36,17 @@ void k_main(void)
     vga_writestring("[OK] VGA driver initialized\n");
     vga_writestring("[OK] Kernel loaded at 0x10000\n");
 
-    // TEMPORARILY COMMENT OUT IDT INITIALIZATION
-    // idt_init();
-    // vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
-    // timer_init();
-    // keyboard_init();
-    // __asm__ volatile("sti");
-    // vga_writestring("[OK] Interrupts enabled\n");
-
-    vga_writestring("[INFO] IDT initialization skipped for testing\n");
+    // Initialize interrupt system
+    idt_init();
+    vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
+    
+    // Initialize drivers
+    timer_init();
+    keyboard_init();
+    
+    // Enable interrupts
+    __asm__ volatile("sti");
+    vga_writestring("[OK] Interrupts enabled\n");
 
     // Display some system info
     vga_writestring("\nSystem Information:\n");
@@ -97,14 +56,14 @@ void k_main(void)
 
     vga_setcolor(vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
     vga_writestring("\n[INFO] Kernel initialization complete.\n");
-    vga_writestring("[INFO] Basic kernel running without interrupts.\n");
+    vga_writestring("[INFO] Full kernel running with interrupts enabled.\n");
 
     vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-    vga_writestring("\nPress Ctrl+Alt+Del to reboot.\n");
+    vga_writestring("\nPyramidOS Shell - Type 'help' for commands.\n");
+    vga_writestring("PyramidOS> ");
 
-    // Infinite loop with CLI to prevent any interrupts
-    __asm__ volatile("cli");
+    // Main kernel loop - interrupts will handle input and timer
     for (;;) {
-        __asm__ volatile("hlt");
+        __asm__ volatile("hlt");  // Halt until interrupt
     }
 }

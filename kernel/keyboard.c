@@ -1,22 +1,15 @@
 #include "keyboard.h"
 #include "vga.h"
+#include "io.h"
+#include "pic.h"
+#include "string.h"
+#include "timer.h"
 #include "stdint.h"
 #include "stddef.h"
 
 // Keyboard constants
 #define KEYBOARD_DATA_PORT    0x60
 #define KEYBOARD_STATUS_PORT  0x64
-
-// Helper functions for port I/O
-static inline void outb(uint16_t port, uint8_t value) {
-    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t result;
-    __asm__ volatile("inb %1, %0" : "=a"(result) : "Nd"(port));
-    return result;
-}
 
 // Simple US QWERTY scancode to ASCII map (scancode set 1)
 static const char scancode_to_ascii[] = {
@@ -159,7 +152,7 @@ void process_command(const char* command) {
     else if (strcmp(command, "uptime") == 0) {
         vga_writestring("System uptime: ");
         char time_str[16];
-        itoa(timer_get_seconds(), time_str, 10);
+        utoa(timer_get_seconds(), time_str, 10);
         vga_writestring(time_str);
         vga_writestring(" seconds\n");
     }
@@ -183,11 +176,4 @@ void process_command(const char* command) {
     }
 }
 
-// Simple string comparison
-int strcmp(const char* str1, const char* str2) {
-    while (*str1 && (*str1 == *str2)) {
-        str1++;
-        str2++;
-    }
-    return *(unsigned char*)str1 - *(unsigned char*)str2;
-}
+// strcmp is now in string.c, remove duplicate

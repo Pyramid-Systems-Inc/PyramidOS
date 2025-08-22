@@ -20,7 +20,7 @@ ASMFLAGS = -f elf32
 LDFLAGS = -melf_i386 -T linker.ld
 
 # Source files and objects
-C_SOURCES = main.c vga.c idt.c exceptions.c timer.c keyboard.c
+C_SOURCES = main.c vga.c idt.c exceptions.c timer.c keyboard.c string.c pic.c
 ASM_SOURCES = entry.asm idt_asm.asm
 OBJS = $(C_SOURCES:.c=.o) $(ASM_SOURCES:.asm=.o)
 
@@ -51,12 +51,14 @@ $(TARGET_BIN): $(TARGET_ELF)
 	$(ASM) $(ASMFLAGS) $< -o $@
 
 # Dependencies
-main.o: main.c vga.h stdint.h stddef.h idt.h timer.h keyboard.h
+main.o: main.c vga.h stdint.h stddef.h idt.h timer.h keyboard.h string.h
 vga.o: vga.c vga.h stdint.h stddef.h
-idt.o: idt.c idt.h vga.h stdint.h
-exceptions.o: exceptions.c idt.h vga.h stddef.h stdint.h
-timer.o: timer.c timer.h vga.h stdint.h
-keyboard.o: keyboard.c keyboard.h vga.h stdint.h
+idt.o: idt.c idt.h vga.h pic.h stdint.h
+exceptions.o: exceptions.c idt.h vga.h string.h stddef.h stdint.h
+timer.o: timer.c timer.h vga.h io.h pic.h string.h stdint.h
+keyboard.o: keyboard.c keyboard.h vga.h io.h pic.h string.h timer.h stdint.h
+string.o: string.c string.h stddef.h
+pic.o: pic.c pic.h io.h vga.h stdint.h
 
 # Clean build artifacts
 clean:

@@ -1,5 +1,8 @@
 #include "timer.h"
 #include "vga.h"
+#include "io.h"
+#include "pic.h"
+#include "string.h"
 #include "stdint.h"
 #include "stddef.h"
 
@@ -12,17 +15,6 @@ static uint32_t seconds = 0;
 #define PIT_DATA_PORT_0  0x40
 #define PIT_FREQUENCY    1193180  // Base frequency of PIT
 #define TARGET_FREQUENCY 100      // 100 Hz (10ms intervals)
-
-// Helper functions for port I/O
-static inline void outb(uint16_t port, uint8_t value) {
-    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t result;
-    __asm__ volatile("inb %1, %0" : "=a"(result) : "Nd"(port));
-    return result;
-}
 
 void timer_init(void) {
     // Calculate the divisor for our target frequency
@@ -56,7 +48,7 @@ void irq_timer_handler(void) {
             vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
             
             char time_str[16];
-            itoa(seconds, time_str, 10);
+            utoa(seconds, time_str, 10);
             vga_writestring("Uptime: ");
             vga_writestring(time_str);
             vga_writestring("s    ");

@@ -1,6 +1,7 @@
 #include "idt.h"
 #include "vga.h"
-#include "stddef.h"  // Add this include for itoa declaration
+#include "string.h"
+#include "stddef.h"
 
 // Exception names
 static const char* exception_messages[] = {
@@ -58,7 +59,7 @@ void exception_handler(uint32_t interrupt_number, uint32_t error_code) {
     vga_writestring(num_str);
     
     vga_writestring("\nError Code: ");
-    itoa(error_code, num_str, 16);
+    utoa(error_code, num_str, 16);
     vga_writestring("0x");
     vga_writestring(num_str);
     

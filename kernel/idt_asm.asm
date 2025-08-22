@@ -6,6 +6,7 @@ section .text
 extern exception_handler
 extern irq_timer_handler
 extern irq_keyboard_handler
+extern pic_send_eoi
 
 ; Function to load IDT
 global idt_load
@@ -151,15 +152,12 @@ irq_common_stub:
     jmp .end
     
 .end:
-    ; Send EOI to PIC
-    mov al, 0x20        ; EOI command
-    out 0x20, al        ; Send to master PIC
-    
-    ; If IRQ >= 8, send EOI to slave PIC too
-    mov eax, [esp + 36]
-    cmp eax, 40
-    jl .restore
-    out 0xA0, al        ; Send to slave PIC
+    ; Send EOI using PIC driver
+    mov eax, [esp + 36] ; Get interrupt number
+    sub eax, 32         ; Convert to IRQ number (IRQ = interrupt - 32)
+    push eax
+    call pic_send_eoi
+    add esp, 4          ; Clean up stack
     
 .restore:
     pop eax             ; Restore original data segment
