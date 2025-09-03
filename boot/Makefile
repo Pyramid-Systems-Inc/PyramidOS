@@ -117,6 +117,8 @@ header: $(KERNEL_IMG)
 	@dd if=$(KERNEL_IMG) bs=1 skip=12 count=4 status=none | hexdump -v -e '1/4 "0x%08x\n"'
 	@echo "Entry address (phys, 32-bit little-endian):"
 	@dd if=$(KERNEL_IMG) bs=1 skip=16 count=4 status=none | hexdump -v -e '1/4 "0x%08x\n"'
+	@echo "Checksum32 (sum of kernel.bin bytes):"
+	@dd if=$(KERNEL_IMG) bs=1 skip=20 count=4 status=none | hexdump -v -e '1/4 "0x%08x\n"'
 # Create build directory if needed
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)

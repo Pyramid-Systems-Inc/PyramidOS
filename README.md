@@ -55,6 +55,17 @@ The kernel image `build/kernel.img` contains:
   - size: 32‑bit little‑endian size of `kernel.bin`
   - load_physical_address: 32‑bit physical load address (default 0x00010000)
   - entry_physical_address: 32‑bit physical entry address (default 0x00010000)
+  - checksum32_bytes: sum of all bytes in `kernel.bin` (mod 2^32)
 - followed by the raw `kernel.bin`.
 
 Stage2 reads and validates the header, computes the number of sectors to read, loads the kernel to the specified load address, and then enters protected mode and jumps to the entry.
+
+### Boot Information (BootInfo)
+
+Before switching to protected mode, the bootloader writes a small `BootInfo` structure at physical 0x00005000 containing:
+- magic "BOOT", version 0x0001
+- boot drive number
+- kernel load segment:offset and kernel size (bytes)
+- E820 memory map: entry count at 0x00005014 and table at 0x00005020 (24‑byte entries)
+
+The kernel reads this to display load address and can be extended to use E820 data.

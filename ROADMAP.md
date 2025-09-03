@@ -17,7 +17,7 @@ Create a complete, modern operating system that combines:
 - **[PRIORITY] Complete Current Legacy/UEFI Implementation**
   - [X] Finish payload loading in Stage 2 for Legacy BIOS (header-validated, LBA with retries, CHS fallback)
   - [ ] Implement kernel loading from ESP in UEFI
-  - [X] Create simple test payload system (kernel image with 512-byte header)
+  - [X] Create simple test payload system (kernel image with 512-byte header + checksum)
   - [X] Establish build system integration (top-level make; boot targets for run/header)
 
 - **Architecture Redesign**
@@ -55,6 +55,7 @@ Create a complete, modern operating system that combines:
 
 ### Success Criteria
 - [ ] Bootloader successfully loads kernel on both Legacy BIOS and UEFI
+ - [X] Legacy BIOS boot path validates kernel integrity and passes BootInfo/E820 to kernel
 - [ ] Kernel manages 4GB+ virtual address space per process
 - [ ] Memory manager achieves <1% fragmentation under stress
 - [ ] Scheduler handles 1000+ threads with <1ms interactive latency

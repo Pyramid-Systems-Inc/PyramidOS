@@ -13,10 +13,12 @@ To create separate, functional bootloaders for Legacy BIOS and UEFI systems, cap
   - `src/legacy/stage1.asm`: 512B MBR; probes INT 13h extensions and loads Stage2 via LBA (fallback CHS).
   - `src/legacy/stage2.asm`: Robust loader that:
     - Reads a 512B kernel header (magic "PyrImg01", size, load/entry addresses)
+    - Verifies a checksum32 of the kernel data before transfer
     - Loads `kernel.img` via LBA with retries and CHS fallback
     - Honors 64 KiB ES:BX boundary constraints
     - Enables A20 (Fast A20 + KBC fallback)
     - Enters protected mode and jumps to kernel
+  - Writes a `BootInfo` structure at 0x00005000 (boot drive, kernel load seg:off, size) and collects an E820 memory map (table at 0x00005020).
 - **UEFI:**
   - `src/uefi/main.c`: EDK2 skeleton that prints a startup message (payload loading TBD).
 - **Next Steps:** Implement kernel loading from ESP for UEFI (see `ROADMAP.md`).
