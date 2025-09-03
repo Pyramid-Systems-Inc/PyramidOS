@@ -90,10 +90,40 @@ stage2_start:
     loop .shr_loop
     mov [dyn_kernel_sectors], ax
 
-    ; 2) Read kernel.bin starting from LBA+1 into KERNEL_LOAD_SEG:0000
+    ; Parse load and entry addresses from header
+    ; Load address at offset 12 (dd)
+    mov bx, 12
+    mov ax, word es:[bx]        ; low
+    mov dx, word es:[bx+2]      ; high
+    mov si, ax                  ; save low
+    mov cx, dx
+    shl cx, 12                  ; high -> segment bits
+    shr ax, 4
+    or  ax, cx                  ; AX = segment
+    mov [dest_seg], ax
+    mov ax, si
+    and ax, 0x000F              ; AX = offset
+    mov [dest_off], ax
+
+    ; Entry address at offset 16 (dd)
+    mov bx, 16
+    mov ax, word es:[bx]
+    mov dx, word es:[bx+2]
+    mov [kernel_entry32], ax
+    mov [kernel_entry32+2], dx
+
+    ; 2) Read kernel.bin starting from LBA+1 into destination
+    mov ax, [dest_seg]
+    test ax, ax
+    jnz .use_hdr_dest
     mov ax, KERNEL_LOAD_SEG
+    mov [dest_seg], ax
+    mov ax, KERNEL_LOAD_OFF
+    mov [dest_off], ax
+.use_hdr_dest:
+    mov ax, [dest_seg]
     mov es, ax
-    mov bx, KERNEL_LOAD_OFF
+    mov bx, [dest_off]
     mov ax, KERNEL_LBA+1
     mov [cur_lba], ax
     mov cx, [dyn_kernel_sectors]
@@ -240,9 +270,9 @@ stage2_start:
     ; 2) Read kernel.bin via CHS from LBA+1
     mov ax, KERNEL_LBA+1
     mov [cur_lba], ax
-    mov ax, KERNEL_LOAD_SEG
+    mov ax, [dest_seg]
     mov es, ax
-    mov bx, KERNEL_LOAD_OFF
+    mov bx, [dest_off]
     mov cx, [dyn_kernel_sectors]
 .chs_loop_kernel:
     cmp cx, 0
@@ -383,6 +413,12 @@ protected_mode_start:
     mov dword [0xB8010], 0x2F4D2F4A  ; "JM" (jump)
     
     ; Jump to kernel with proper segment (code segment 0x08)
+    ; If header provided entry, use it; else default 0x00010000
+    mov eax, [kernel_entry32]
+    test eax, eax
+    jz .default_entry
+    jmp eax
+.default_entry:
     jmp 0x08:0x10000
 
 bits 16
@@ -475,6 +511,11 @@ heads:              db 2
 tmp_count:          dw 0
 
 magic_ref: db 'P','y','r','I','m','g','0','1'
+
+; Destination and entry parsed from header
+dest_seg:           dw 0
+dest_off:           dw 0
+kernel_entry32:     dd 0
 
 ; GDT
 align 8

@@ -25,7 +25,7 @@ LEGACY_FINAL_IMG = $(BUILD_DIR)/pyramidos_legacy.img
 # Sector where the kernel will be written on the disk image
 KERNEL_LBA_START = 60
 
-.PHONY: all legacy clean info run debug
+.PHONY: all legacy clean info run debug header
 
 # Default target
 all: legacy
@@ -105,6 +105,18 @@ hexdump: $(LEGACY_FINAL_IMG)
 	@echo ""
 	@echo "Sector 60 (Kernel):"
 	@hexdump -C $(LEGACY_FINAL_IMG) -s 30720 -n 64
+
+# Inspect kernel header (from kernel.img)
+header: $(KERNEL_IMG)
+	@echo "=== Kernel Header Fields ==="
+	@echo "Magic:"
+	@dd if=$(KERNEL_IMG) bs=1 count=8 status=none | hexdump -C
+	@echo "Size (bytes, little-endian 32-bit):"
+	@dd if=$(KERNEL_IMG) bs=1 skip=8 count=4 status=none | hexdump -v -e '1/4 "0x%08x\n"'
+	@echo "Load address (phys, 32-bit little-endian):"
+	@dd if=$(KERNEL_IMG) bs=1 skip=12 count=4 status=none | hexdump -v -e '1/4 "0x%08x\n"'
+	@echo "Entry address (phys, 32-bit little-endian):"
+	@dd if=$(KERNEL_IMG) bs=1 skip=16 count=4 status=none | hexdump -v -e '1/4 "0x%08x\n"'
 # Create build directory if needed
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
