@@ -9,14 +9,17 @@ To create separate, functional bootloaders for Legacy BIOS and UEFI systems, cap
 ## Current Status (Phase 1 In Progress)
 
 - **Separate Implementations:** Building distinct bootloaders for BIOS and UEFI.
-- **Minimal Placeholders:** Initial source files exist for both paths.
-    - **Legacy BIOS:**
-        - `src/legacy/stage1.asm`: Loads Stage 2.
-        - `src/legacy/entry.asm`: Sets up basic C environment for Stage 2.
-        - `src/legacy/stage2.c`: Prints a startup message and halts.
-    - **UEFI:**
-        - `src/uefi/main.c`: Initializes `gnu-efi`, prints a startup message, and halts.
-- **Next Steps:** Implement basic payload loading in both environments (see `ROADMAP.md`).
+- **Legacy BIOS:**
+  - `src/legacy/stage1.asm`: 512B MBR; probes INT 13h extensions and loads Stage2 via LBA (fallback CHS).
+  - `src/legacy/stage2.asm`: Robust loader that:
+    - Reads a 512B kernel header (magic "PyrImg01", size, load/entry addresses)
+    - Loads `kernel.img` via LBA with retries and CHS fallback
+    - Honors 64 KiB ES:BX boundary constraints
+    - Enables A20 (Fast A20 + KBC fallback)
+    - Enters protected mode and jumps to kernel
+- **UEFI:**
+  - `src/uefi/main.c`: EDK2 skeleton that prints a startup message (payload loading TBD).
+- **Next Steps:** Implement kernel loading from ESP for UEFI (see `ROADMAP.md`).
 
 ## Prerequisites
 
@@ -40,23 +43,27 @@ The tools required for building and testing remain the same:
 
 ### Environment Setup Guidance (See Below)
 
-## Building (Requires Build System Update)
+## Building
 
-**Note:** The existing `Makefile` and `build.ps1` likely need significant updates to work with the new structure and potentially different compilers (especially for 16-bit C).
+Use the top-level Makefile from the repo root.
 
 ```bash
-# Example using Make (Linux/MSYS2/WSL - Once Makefile is updated)
-make clean
-make all # Or 'make legacy', 'make uefi'
+# Build kernel image (with header) and legacy BIOS boot image
+make clean && make
+
+# Run (Legacy BIOS)
+make -C boot run
+
+# Inspect kernel header
+make -C boot header
 ```
 
 ## Running (Example QEMU Commands)
 
-### QEMU (Legacy BIOS - Once build produces an image)
+### QEMU (Legacy BIOS)
 
 ```bash
-# Example: Run from floppy image
-qemu-system-i386 -fda build/legacy_boot.img
+qemu-system-i386 -fda build/pyramidos_legacy.img
 ```
 
 ### QEMU (UEFI - Once build produces bootx64.efi)

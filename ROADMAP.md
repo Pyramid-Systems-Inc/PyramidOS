@@ -15,10 +15,10 @@ Create a complete, modern operating system that combines:
 
 ### Bootloader Foundation
 - **[PRIORITY] Complete Current Legacy/UEFI Implementation**
-  - Finish payload loading in Stage 2 for Legacy BIOS
-  - Implement kernel loading from ESP in UEFI
-  - Create simple test payload system
-  - Establish build system integration
+  - [X] Finish payload loading in Stage 2 for Legacy BIOS (header-validated, LBA with retries, CHS fallback)
+  - [ ] Implement kernel loading from ESP in UEFI
+  - [X] Create simple test payload system (kernel image with 512-byte header)
+  - [X] Establish build system integration (top-level make; boot targets for run/header)
 
 - **Architecture Redesign**
   - Implement modular, plugin-based architecture

@@ -16,8 +16,10 @@ To create a monolithic kernel-based operating system for the x86 architecture, f
 
 The project has recently pivoted from being a standalone bootloader. The initial structure for the operating system has been established.
 
-- **/boot**: Contains the bootloader code (both Legacy BIOS and UEFI) responsible for loading the PyramidOS kernel.
-- **/kernel**: The heart of the OS. Will contain core components like the scheduler, memory manager, and system call interface.
+- **/boot**: Bootloader for both Legacy BIOS and UEFI.
+  - Legacy BIOS path is implemented end-to-end: Stage1 → Stage2 → A20 → Protected Mode → jump to kernel.
+  - Stage2 loads a kernel image using LBA with retries and CHS fallback, handles 64 KiB boundaries, and validates a kernel header.
+- **/kernel**: 32‑bit freestanding kernel that initializes VGA text, IDT/PIC, PIT (100 Hz), and keyboard; includes a tiny text shell.
 - **/drivers**: Will house device drivers (keyboard, mouse, disk, etc.).
 - **/libc**: A custom implementation of the standard C library.
 - **/user**: User-mode applications, including the shell and other utilities.
@@ -32,11 +34,27 @@ See `ROADMAP.md` for the detailed, phased development plan.
 A top-level `Makefile` orchestrates the build process.
 
 ```bash
-# To build the bootloader (for now)
-make boot
+# Build kernel image (with 512-byte header) and legacy BIOS boot image
+make clean && make
 
-# To build the entire OS (eventually)
-make all
+# Run in QEMU (Legacy BIOS)
+make -C boot run
 
-# To clean all build artifacts
+# Inspect kernel header fields (magic/size/addresses)
+make -C boot header
+
+# Clean all build artifacts
 make clean
+```
+
+### Kernel Image Header
+
+The kernel image `build/kernel.img` contains:
+- 512‑byte header with fields:
+  - magic: "PyrImg01"
+  - size: 32‑bit little‑endian size of `kernel.bin`
+  - load_physical_address: 32‑bit physical load address (default 0x00010000)
+  - entry_physical_address: 32‑bit physical entry address (default 0x00010000)
+- followed by the raw `kernel.bin`.
+
+Stage2 reads and validates the header, computes the number of sectors to read, loads the kernel to the specified load address, and then enters protected mode and jumps to the entry.

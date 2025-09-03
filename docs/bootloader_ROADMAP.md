@@ -8,7 +8,7 @@ Create distinct, functional Legacy BIOS and UEFI bootloaders capable of loading 
 
 ## Phase 1: Minimal Functional Bootloaders (Separate Implementations)
 
-### Legacy BIOS (Target: Load simple payload from fixed location)
+### Legacy BIOS (Target: Load kernel image from fixed location)
 
 - [X] **Stage 1 (Assembly - `src/legacy/stage1.asm`)**
   - [X] Basic 16-bit setup (segments, stack).
@@ -21,7 +21,7 @@ Create distinct, functional Legacy BIOS and UEFI bootloaders capable of loading 
   - [X] Basic C runtime initialization (handled by `entry.asm` and compiler).
   - [X] Print startup message via BIOS TTY (using `bios_print_char_asm` helper).
 
-- [ ] **Implement Payload Loading in Stage 2 (`src/legacy/stage2.c` and new ASM helper)**
+- [X] **Implement Payload Loading in Stage 2 (`src/legacy/stage2.asm`)**
   - **1. Define Payload Parameters (`src/legacy/stage2.c`):**
     - Define constants for:
       - `PAYLOAD_LBA_START`: The Logical Block Address where the payload begins on disk (e.g., sector 60, ensuring it's after Stage 1 & 2).
@@ -73,7 +73,7 @@ Create distinct, functional Legacy BIOS and UEFI bootloaders capable of loading 
       - Call the function pointer: `payload_entry();`
     - If loading failed, halt or print an error and then halt.
 
-- [ ] **Create a Simple Test Payload (e.g., `payload.asm` -> `payload.bin`)**
+- [X] **Create a Simple Test Payload (kernel image with header)**
   - **1. Write `payload.asm`:**
     - `bits 16`
     - `org 0x0000` (relative to its load address, e.g., `0x1000:0000`)
@@ -85,14 +85,8 @@ Create distinct, functional Legacy BIOS and UEFI bootloaders capable of loading 
 
 - [X] **Build System (Makefile)**
   - [X] Compile/Assemble Stage 1 & 2.
-  - [X] Create bootable floppy/disk image (`legacy_floppy.img`).
-  - [ ] **Update Makefile for Payload:**
-    - Add a rule to assemble `payload.asm` to `build/payload.bin`.
-    - Modify the `$(LEGACY_FINAL_IMG)` rule to:
-      - First, create an empty 1.44MB floppy image: `truncate -s 1440K $(LEGACY_FINAL_IMG)` (or `dd if=/dev/zero of=$(LEGACY_FINAL_IMG) bs=1K count=1440`).
-      - Write Stage 1 to the beginning: `dd if=$(LEGACY_STAGE1_BIN) of=$(LEGACY_FINAL_IMG) conv=notrunc bs=512 count=1`.
-      - Write Stage 2 immediately after Stage 1 (or wherever Stage 1 expects it): `dd if=$(LEGACY_STAGE2_BIN) of=$(LEGACY_FINAL_IMG) seek=1 conv=notrunc bs=512` (assuming Stage 2 starts at sector 1, LBA 1). Adjust `seek` based on `STAGE2_START_SECTOR` in `stage1.asm`.
-      - Write `payload.bin` to its designated LBA: `dd if=build/payload.bin of=$(LEGACY_FINAL_IMG) seek=PAYLOAD_LBA_START conv=notrunc bs=512`. (Ensure `PAYLOAD_LBA_START` is a variable accessible in the Makefile or hardcoded consistently).
+  - [X] Create bootable floppy/disk image (`pyramidos_legacy.img`).
+  - [X] Generate `kernel.img` (header + kernel.bin) and embed at fixed LBA.
 
 - [ ] **Testing**
   - Test the complete flow in QEMU:
