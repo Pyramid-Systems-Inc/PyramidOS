@@ -5,7 +5,9 @@ bits 16
 STAGE2_LOAD_SEGMENT equ 0x0800
 STAGE2_LOAD_OFFSET  equ 0x0000
 STAGE2_START_SECTOR equ 2
-STAGE2_SECTOR_COUNT equ 8  ; Increase to 8 sectors (4KB) to be safe
+%ifndef STAGE2_SECTOR_COUNT
+STAGE2_SECTOR_COUNT equ 8  ; Default, overridden by Makefile
+%endif
 
 start:
     cli
