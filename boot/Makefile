@@ -18,7 +18,7 @@ LEGACY_STAGE2_ASM = $(SRC_DIR)/legacy/stage2.asm
 
 LEGACY_STAGE1_BIN = $(LEGACY_BUILD_DIR)/stage1.bin
 LEGACY_STAGE2_BIN = $(LEGACY_BUILD_DIR)/stage2.bin
-KERNEL_BIN = $(BUILD_DIR)/kernel.bin
+KERNEL_IMG = $(BUILD_DIR)/kernel.img
 
 LEGACY_FINAL_IMG = $(BUILD_DIR)/pyramidos_legacy.img
 
@@ -56,16 +56,21 @@ $(LEGACY_STAGE1_BIN): $(LEGACY_STAGE1_ASM) | $(LEGACY_BUILD_DIR)
 	fi
 	@echo "Stage 1 built successfully (512 bytes)"
 
-# Build Stage 2 (pure assembly)
-$(LEGACY_STAGE2_BIN): $(LEGACY_STAGE2_ASM) | $(LEGACY_BUILD_DIR)
+# Build Stage 2 (pure assembly) with kernel params
+
+# Stage2 depends on kernel image to know sector count
+$(LEGACY_STAGE2_BIN): $(LEGACY_STAGE2_ASM) $(KERNEL_IMG) | $(LEGACY_BUILD_DIR)
 	@echo "Building Stage 2..."
-	$(LEGACY_AS) $< -f bin -o $@
+	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_IMG) 2>/dev/null || stat -f%z $(KERNEL_IMG) 2>/dev/null); \
+	KERNEL_SECTORS=$$(( ($$KERNEL_SIZE + 511) / 512 )); \
+	echo "Kernel size: $$KERNEL_SIZE bytes ($$KERNEL_SECTORS sectors)"; \
+	$(LEGACY_AS) $< -f bin -o $@ -D KERNEL_LBA=$(KERNEL_LBA_START) -D KERNEL_SECTOR_COUNT=$$KERNEL_SECTORS
 	@SIZE=$$(stat -c%s $@ 2>/dev/null || stat -f%z $@ 2>/dev/null); \
 	echo "Stage 2 size: $$SIZE bytes"
 
 # Create the final floppy image
 # Create the final floppy image
-$(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $(BUILD_DIR)
+$(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_IMG) | $(BUILD_DIR)
 	@echo "--- Creating Legacy Boot Image ---"
 	# Create an empty 1.44MB image
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
@@ -73,17 +78,17 @@ $(LEGACY_FINAL_IMG): $(LEGACY_STAGE1_BIN) $(LEGACY_STAGE2_BIN) $(KERNEL_BIN) | $
 	dd if=$(LEGACY_STAGE1_BIN) of=$@ bs=512 count=1 conv=notrunc status=none
 	# Write Stage 2 starting at sector 2 (seek=1 means skip 1 sector)
 	dd if=$(LEGACY_STAGE2_BIN) of=$@ bs=512 seek=1 conv=notrunc status=none
-	# Write kernel at sector 60
-	dd if=$(KERNEL_BIN) of=$@ bs=512 seek=60 conv=notrunc status=none
+	# Write kernel image (header+bin) at sector 60
+	dd if=$(KERNEL_IMG) of=$@ bs=512 seek=60 conv=notrunc status=none
 	@echo "Disk image created successfully"
 	@echo "Stage 1: 512 bytes at sector 0"
 	@STAGE2_SIZE=$$(stat -c%s $(LEGACY_STAGE2_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE2_BIN)); \
 	STAGE2_SECTORS=$$(($$STAGE2_SIZE / 512 + ($$STAGE2_SIZE % 512 != 0))); \
 	echo "Stage 2: $$STAGE2_SIZE bytes ($$STAGE2_SECTORS sectors) at sector 1"
-	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN)); \
+	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_IMG) 2>/dev/null || stat -f%z $(KERNEL_IMG)); \
 	KERNEL_SECTORS=$$(($$KERNEL_SIZE / 512 + ($$KERNEL_SIZE % 512 != 0))); \
 	echo "Kernel: $$KERNEL_SIZE bytes ($$KERNEL_SECTORS sectors) at sector 60"; \
-	echo "*** IMPORTANT: Update KERNEL_SECTOR_COUNT in stage2.asm to at least $$KERNEL_SECTORS ***"
+	echo "Stage2 assembled with KERNEL_SECTOR_COUNT=$$KERNEL_SECTORS"
 
 
 # Add this to boot/Makefile

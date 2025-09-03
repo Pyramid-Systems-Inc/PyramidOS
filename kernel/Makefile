@@ -26,13 +26,15 @@ OBJS = $(C_SOURCES:.c=.o) $(ASM_SOURCES:.asm=.o)
 
 TARGET_BIN = ../build/kernel.bin
 TARGET_ELF = ../build/kernel.elf
+TARGET_IMG = ../build/kernel.img
 
 .PHONY: all clean
 
 # Default target
-all: $(TARGET_BIN)
-	@echo "Kernel built successfully!"
-	@stat -c "Size: %s bytes" $(TARGET_BIN) 2>/dev/null || stat -f "Size: %z bytes" $(TARGET_BIN) 2>/dev/null || echo "Size: unknown"
+all: $(TARGET_IMG)
+	@echo "Kernel image built successfully!"
+	@stat -c "BIN Size: %s bytes" $(TARGET_BIN) 2>/dev/null || stat -f "BIN Size: %z bytes" $(TARGET_BIN) 2>/dev/null || echo "BIN Size: unknown"
+	@stat -c "IMG Size: %s bytes" $(TARGET_IMG) 2>/dev/null || stat -f "IMG Size: %z bytes" $(TARGET_IMG) 2>/dev/null || echo "IMG Size: unknown"
 
 # Link objects into an ELF file
 $(TARGET_ELF): $(OBJS) linker.ld
@@ -41,6 +43,13 @@ $(TARGET_ELF): $(OBJS) linker.ld
 # Convert the ELF file to a flat binary
 $(TARGET_BIN): $(TARGET_ELF)
 	$(OBJCOPY) -O binary $< $@
+
+# Build kernel image with 512-byte header + kernel.bin
+$(TARGET_IMG): $(TARGET_BIN) header.asm
+	@KERNEL_SIZE=$$(stat -c%s $(TARGET_BIN) 2>/dev/null || stat -f%z $(TARGET_BIN) 2>/dev/null); \
+	echo "Generating kernel header with size $$KERNEL_SIZE"; \
+	$(ASM) -f bin header.asm -o ../build/kernel.hdr -D KERNEL_SIZE=$$KERNEL_SIZE; \
+	cat ../build/kernel.hdr $(TARGET_BIN) > $(TARGET_IMG)
 
 # Pattern rule for C files
 %.o: %.c
