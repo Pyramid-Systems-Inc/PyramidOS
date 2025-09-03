@@ -27,7 +27,17 @@ start:
     mov si, msg_s1
     call print_string
     
-    ; Try extended read first
+    ; Probe for INT 13h extensions and try extended read first (with reset)
+    mov ah, 0x41
+    mov bx, 0x55AA
+    mov dl, [boot_drive]
+    int 0x13
+    jc .std_read
+    cmp bx, 0xAA55
+    jne .std_read
+    ; reset then extended read
+    mov ah, 0x00
+    int 0x13
     mov ah, 0x42
     mov dl, [boot_drive]
     mov si, dap
@@ -39,6 +49,7 @@ start:
     call print_string
     
     ; Standard read
+.std_read:
     mov ah, 0x02                    ; Read sectors
     mov al, STAGE2_SECTOR_COUNT     ; Number of sectors
     mov ch, 0                       ; Cylinder 0
