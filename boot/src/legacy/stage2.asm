@@ -368,8 +368,15 @@ stage2_start:
     mov dl, [boot_drive]
     mov ah, 0x02
     mov al, byte [tmp_count]
+    mov si, 3
+.chs_try:
     int 0x13
+    jnc .chs_ok
+    call disk_reset
+    dec si
+    jnz .chs_try
     jc .final_error
+.chs_ok:
 
     ; advance pointers
     mov ax, [tmp_count]
@@ -414,11 +421,24 @@ stage2_start:
     hlt
 .cksum_ok:
     
-    ; Enable A20 (Fast A20 then KBC fallback)
+    ; Enable A20 (Fast A20 then KBC fallback) and verify
     call enable_a20
-    
+    call verify_a20
+    jnc .a20_ok
+    ; retry once
+    call enable_a20
+    call verify_a20
+    jc .a20_fail
+.a20_ok:
     mov si, msg_a20
     call print_string
+    jmp .after_a20
+.a20_fail:
+    mov si, msg_a20_fail
+    call print_string
+    cli
+    hlt
+.after_a20:
     
     ; Build BootInfo at 0x00005000
     mov ax, 0x0000
@@ -610,6 +630,7 @@ msg_hdr_err:    db 'HDR-ERR', 0
 msg_cksum:      db 'CKSUM-ERR', 0
 msg_final_err:  db 'FINAL-ERR:', 0
 msg_a20:        db 'A20 ', 0
+msg_a20_fail:   db 'A20-FAIL', 0
 msg_pmode:      db 'PM', 0
 
 ; Data variables
@@ -732,6 +753,36 @@ enable_a20:
     mov al, 0xAE                ; Re-enable keyboard
     out 0x64, al
     pop ax
+    ret
+
+; Verify A20 by checking wraparound between 0x000000 and 0x00100000
+verify_a20:
+    push ds
+    push es
+    push ax
+    push bx
+    mov ax, 0x0000
+    mov ds, ax
+    mov ax, 0x1000
+    mov es, ax
+    mov bx, 0
+    mov al, [ds:bx]
+    mov ah, [es:bx]
+    mov [ds:bx], 0x5A
+    mov [es:bx], 0xA5
+    cmp [ds:bx], 0x5A
+    jne .set_carry
+    cmp [es:bx], 0xA5
+    jne .set_carry
+    clc
+    jmp .done
+.set_carry:
+    stc
+.done:
+    pop bx
+    pop ax
+    pop es
+    pop ds
     ret
 
 ; Read count sectors at [cur_lba] via CHS into ES:BX, updates [cur_lba]

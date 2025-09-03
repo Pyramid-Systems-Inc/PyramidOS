@@ -28,6 +28,8 @@ typedef struct BootInfo {
     uint16_t kernel_load_seg;
     uint16_t kernel_load_off;
     uint32_t kernel_size_bytes;
+    uint32_t e820_count;   // number of entries
+    uint32_t e820_ptr;     // pointer to entries (phys)
 } BootInfo;
 
 static BootInfo* get_boot_info(void)
@@ -67,6 +69,26 @@ void k_main(void)
         utoa((uint32_t)((bi->kernel_load_seg << 4) + bi->kernel_load_off), tmp, 16);
         vga_writestring(tmp);
         vga_writestring("\n");
+
+        // Print E820 summary
+        vga_writestring("E820 entries: ");
+        utoa(bi->e820_count, tmp, 10);
+        vga_writestring(tmp);
+        vga_writestring("\n");
+        if (bi->e820_count > 0) {
+            // Each entry is 24 bytes: base (QWORD), length (QWORD), type (DWORD)
+            typedef struct { uint32_t base_lo, base_hi, len_lo, len_hi, type; } E820;
+            E820* table = (E820*)(uintptr_t)bi->e820_ptr;
+            vga_writestring("E820[0]: base=0x");
+            utoa(table[0].base_hi, tmp, 16); vga_writestring(tmp);
+            utoa(table[0].base_lo, tmp, 16); vga_writestring(tmp);
+            vga_writestring(" len=0x");
+            utoa(table[0].len_hi, tmp, 16); vga_writestring(tmp);
+            utoa(table[0].len_lo, tmp, 16); vga_writestring(tmp);
+            vga_writestring(" type=");
+            utoa(table[0].type, tmp, 10); vga_writestring(tmp);
+            vga_writestring("\n");
+        }
     } else {
         vga_writestring("[OK] Kernel loaded at 0x10000\n");
     }
