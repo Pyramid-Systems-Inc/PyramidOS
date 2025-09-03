@@ -5,7 +5,8 @@
 ;   [8..11]  kernel_size_bytes: uint32 size of kernel.bin
 ;   [12..15] load_physical_address: recommended load address (0x00010000)
 ;   [16..19] entry_physical_address: recommended entry (0x00010000)
-;   [20..511] reserved = 0
+;   [20..23] checksum32_bytes: uint32 sum of all bytes of kernel.bin (mod 2^32)
+;   [24..511] reserved = 0
 
 %ifndef KERNEL_SIZE
 %error "KERNEL_SIZE not defined for header.asm"
@@ -24,6 +25,9 @@ load_physical_address:
 
 entry_physical_address:
     dd 0x00010000
+
+kernel_checksum32:
+    dd KERNEL_CHECKSUM
 
 ; Reserved/padding to 512 bytes
 times 512-($-$$) db 0

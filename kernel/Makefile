@@ -48,7 +48,20 @@ $(TARGET_BIN): $(TARGET_ELF)
 $(TARGET_IMG): $(TARGET_BIN) header.asm
 	@KERNEL_SIZE=$$(stat -c%s $(TARGET_BIN) 2>/dev/null || stat -f%z $(TARGET_BIN) 2>/dev/null); \
 	echo "Generating kernel header with size $$KERNEL_SIZE"; \
-	$(ASM) -f bin header.asm -o ../build/kernel.hdr -D KERNEL_SIZE=$$KERNEL_SIZE; \
+	KERNEL_CHECKSUM=$$(python3 - << 'PY'
+import sys
+path='$(TARGET_BIN)'
+total=0
+with open(path,'rb') as f:
+    while True:
+        b=f.read(65536)
+        if not b: break
+        total=(total+sum(b)) & 0xFFFFFFFF
+print(total)
+PY
+); \
+	echo "Checksum32: $$KERNEL_CHECKSUM"; \
+	$(ASM) -f bin header.asm -o ../build/kernel.hdr -D KERNEL_SIZE=$$KERNEL_SIZE -D KERNEL_CHECKSUM=$$KERNEL_CHECKSUM; \
 	cat ../build/kernel.hdr $(TARGET_BIN) > $(TARGET_IMG)
 
 # Pattern rule for C files
