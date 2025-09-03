@@ -294,18 +294,16 @@ stage2_start:
     inc ax
     shr ax, 9
 .have_room_chs:
-    ; sectors remaining in this track
+    ; sectors remaining in this track (use 16-bit division)
     push ax                     ; save boundary allowance
     mov ax, [cur_lba]
     xor dx, dx
+    mov bx, 0
     mov bl, [spt]
-    div bl                      ; AX/BL => AL=quot, AH=rem
-    mov si, 0                   ; clear SI
-    mov si, ax                  ; SI=AX for later? not needed
+    div bx                      ; AX=quot, DX=remainder (sector index 0-based)
+    mov ax, 0
     mov al, [spt]
-    sub al, ah                  ; spt - (sector_index)
-    inc al                      ; to end of track
-    mov ah, 0                   ; AL=sectors to end of track
+    sub ax, dx                  ; AX = sectors to end of track
     mov dx, ax                  ; DX=sectors to end
     pop ax                      ; AX=boundary allowance
     cmp dx, ax
@@ -318,19 +316,26 @@ stage2_start:
     mov dx, cx
 .set_dx:
     mov [tmp_count], dx
-    ; Compute CHS from LBA
+    ; Compute CHS from LBA and pack cylinder high bits into CL
     mov ax, [cur_lba]
     xor dx, dx
+    mov bx, 0
     mov bl, [spt]
-    div bl                      ; AX/BL => AL=quot, AH=sector_index
-    mov bh, ah                  ; BH=sector index (0-based)
-    xor ah, ah                  ; AL=quot
+    div bx                      ; AX=quot, DX=sector_index (0-based)
+    mov si, dx                  ; SI = sector_index
+    xor dx, dx
+    mov bx, 0
     mov bl, [heads]
-    div bl                      ; AL= cylinder, AH=head
-    mov ch, al                  ; CH=cylinder (low 8)
-    mov cl, bh                  ; sector index
+    div bx                      ; AX=cylinder, DX=head
+    mov ch, al                  ; CH = cylinder low 8 bits
+    mov cl, sil                 ; sector_index low 8
     inc cl                      ; sector number (1-based)
-    mov dh, ah                  ; DH=head
+    and cl, 0x3F                ; keep sector low 6 bits
+    mov al, ch
+    shr al, 2
+    and al, 0xC0                ; cylinder high 2 bits
+    or cl, al                   ; CL = (sector & 0x3F) | ((cyl>>2)&0xC0)
+    mov dh, dl                  ; DH = head
     mov dl, [boot_drive]
     mov ah, 0x02
     mov al, byte [tmp_count]
