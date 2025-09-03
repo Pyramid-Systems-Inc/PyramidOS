@@ -45,10 +45,13 @@ legacy: $(LEGACY_FINAL_IMG)
 $(LEGACY_BUILD_DIR):
 	mkdir -p $(LEGACY_BUILD_DIR)
 
-# Build Stage 1
-$(LEGACY_STAGE1_BIN): $(LEGACY_STAGE1_ASM) | $(LEGACY_BUILD_DIR)
+# Build Stage 1 (pass Stage2 sector count)
+$(LEGACY_STAGE1_BIN): $(LEGACY_STAGE1_ASM) $(LEGACY_STAGE2_BIN) | $(LEGACY_BUILD_DIR)
 	@echo "Building Stage 1..."
-	$(LEGACY_AS) $< -f bin -o $@
+	@STAGE2_SIZE=$$(stat -c%s $(LEGACY_STAGE2_BIN) 2>/dev/null || stat -f%z $(LEGACY_STAGE2_BIN) 2>/dev/null); \
+	STAGE2_SECTORS=$$(( ($$STAGE2_SIZE + 511) / 512 )); \
+	echo "Stage2 size: $$STAGE2_SIZE bytes ($$STAGE2_SECTORS sectors)"; \
+	$(LEGACY_AS) $< -f bin -o $@ -D STAGE2_SECTOR_COUNT=$$STAGE2_SECTORS
 	@SIZE=$$(stat -c%s $@ 2>/dev/null || stat -f%z $@ 2>/dev/null); \
 	if [ $$SIZE -ne 512 ]; then \
 		echo "ERROR: Stage 1 must be exactly 512 bytes (is $$SIZE)"; \
