@@ -18,6 +18,23 @@ void k_printf(const char *format, int value)
     vga_write(buffer);
 }
 
+// BootInfo structure passed by bootloader at physical 0x00005000 (if present)
+typedef struct BootInfo {
+    uint16_t magic_lo;     // 'OO'
+    uint16_t magic_hi;     // 'TB' => 'BOOT' when combined as 0x54424F4F
+    uint16_t version;      // 0x0001
+    uint8_t  boot_drive;   // BIOS drive number
+    uint8_t  reserved0;
+    uint16_t kernel_load_seg;
+    uint16_t kernel_load_off;
+    uint32_t kernel_size_bytes;
+} BootInfo;
+
+static BootInfo* get_boot_info(void)
+{
+    return (BootInfo*)0x00005000;
+}
+
 // Kernel's main function
 void k_main(void)
 {
@@ -41,7 +58,18 @@ void k_main(void)
     vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 
     vga_writestring("[OK] VGA driver initialized\n");
-    vga_writestring("[OK] Kernel loaded at 0x10000\n");
+    // Try to read BootInfo
+    BootInfo* bi = get_boot_info();
+    if (bi && bi->magic_lo == 0x4F4F && bi->magic_hi == 0x5442) {
+        vga_writestring("[OK] BootInfo detected\n");
+        vga_writestring("[OK] Kernel loaded at 0x");
+        char tmp[16];
+        utoa((uint32_t)((bi->kernel_load_seg << 4) + bi->kernel_load_off), tmp, 16);
+        vga_writestring(tmp);
+        vga_writestring("\n");
+    } else {
+        vga_writestring("[OK] Kernel loaded at 0x10000\n");
+    }
 
     // Initialize interrupt system
     idt_init();

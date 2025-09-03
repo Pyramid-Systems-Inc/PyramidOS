@@ -90,6 +90,12 @@ stage2_start:
     loop .shr_loop
     mov [dyn_kernel_sectors], ax
 
+    ; Verify checksum32 of kernel.bin (header[20..23]) before loading
+    ; Compute sum over kernel.bin as we read: initialize accumulator to 0
+    xor bx, bx
+    mov [cksum_lo], bx
+    mov [cksum_hi], bx
+
     ; Parse load and entry addresses from header
     ; Load address at offset 12 (dd)
     mov bx, 12
@@ -174,6 +180,29 @@ stage2_start:
     mov ah, 0x42
     call int13_with_retries
     jc .lba_to_chs_fallback
+
+    ; accumulate checksum over bytes just read: ES:BX - count*512
+    push cx
+    push dx
+    push si
+    push di
+    mov si, bx
+    mov di, [tmp_count]
+    shl di, 9
+    mov cx, di
+    jcxz .skip_sum
+.sum_loop:
+    mov al, [es:si]
+    xor ah, ah
+    add [cksum_lo], ax
+    adc [cksum_hi], word 0
+    inc si
+    loop .sum_loop
+.skip_sum:
+    pop di
+    pop si
+    pop dx
+    pop cx
 
     ; advance pointers
     mov ax, [tmp_count]
@@ -365,6 +394,25 @@ stage2_start:
     ; Success
     mov si, msg_kernel_ok
     call print_string
+
+    ; Read expected checksum from header and compare to accumulated
+    mov ax, SCRATCH_SEG
+    mov es, ax
+    mov bx, 20
+    mov ax, word es:[bx]
+    mov dx, word es:[bx+2]
+    ; Compare DX:AX to cksum_hi:cksum_lo
+    cmp ax, [cksum_lo]
+    jne .cksum_fail
+    cmp dx, [cksum_hi]
+    jne .cksum_fail
+    jmp .cksum_ok
+.cksum_fail:
+    mov si, msg_cksum
+    call print_string
+    cli
+    hlt
+.cksum_ok:
     
     ; Enable A20 (Fast A20 then KBC fallback)
     call enable_a20
@@ -372,6 +420,34 @@ stage2_start:
     mov si, msg_a20
     call print_string
     
+    ; Build BootInfo at 0x00005000
+    mov ax, 0x0000
+    mov es, ax
+    mov di, 0x5000
+    ; magic 'BOOT'
+    mov word [es:di], 0x4F4F
+    mov word [es:di+2], 0x5442
+    ; version
+    mov word [es:di+4], 0x0001
+    ; boot drive
+    mov al, [boot_drive]
+    mov [es:di+6], al
+    ; kernel load seg:off
+    mov ax, [dest_seg]
+    mov [es:di+8], ax
+    mov ax, [dest_off]
+    mov [es:di+10], ax
+    ; kernel size bytes from header
+    mov ax, SCRATCH_SEG
+    mov es, ax
+    mov bx, 8
+    mov ax, word [es:bx]
+    mov dx, word [es:bx+2]
+    mov word [0x0000:0x5010], ax
+    mov word [0x0000:0x5012], dx
+    ; pass EBX = 0x00005000 to kernel in protected mode later
+    mov bx, 0x5000
+
     ; Enter protected mode
     mov si, msg_pmode
     call print_string
@@ -504,6 +580,7 @@ msg_chs:        db 'CHS ', 0
 msg_kernel_ok:  db 'K-OK ', 0
 msg_lba_err:    db 'LBA-ERR:', 0
 msg_hdr_err:    db 'HDR-ERR', 0
+msg_cksum:      db 'CKSUM-ERR', 0
 msg_final_err:  db 'FINAL-ERR:', 0
 msg_a20:        db 'A20 ', 0
 msg_pmode:      db 'PM', 0
@@ -521,6 +598,10 @@ magic_ref: db 'P','y','r','I','m','g','0','1'
 dest_seg:           dw 0
 dest_off:           dw 0
 kernel_entry32:     dd 0
+
+; Running checksum accumulator (32-bit in two words)
+cksum_lo:           dw 0
+cksum_hi:           dw 0
 
 ; GDT
 align 8
