@@ -439,13 +439,40 @@ stage2_start:
     mov [es:di+10], ax
     ; kernel size bytes from header
     mov ax, SCRATCH_SEG
-    mov es, ax
+    mov ds, ax
     mov bx, 8
-    mov ax, word [es:bx]
-    mov dx, word [es:bx+2]
-    mov word [0x0000:0x5010], ax
-    mov word [0x0000:0x5012], dx
-    ; pass EBX = 0x00005000 to kernel in protected mode later
+    mov ax, word [ds:bx]
+    mov dx, word [ds:bx+2]
+    mov word [es:0x5010], ax
+    mov word [es:0x5012], dx
+    ; initialize e820 fields
+    mov dword [es:0x5014], 0          ; entry count
+    mov dword [es:0x5018], 0x00005020 ; table pointer
+    ; collect E820 memory map into 0x00005020
+    xor ebx, ebx
+    mov di, 0x5020
+    xor bp, bp                         ; entry counter
+.e820_next:
+    mov eax, 0xE820
+    mov edx, 0x534D4150               ; 'SMAP'
+    mov ecx, 24
+    push es
+    mov ax, 0x0000
+    mov es, ax
+    int 0x15
+    pop es
+    jc .e820_done
+    cmp eax, 0x534D4150
+    jne .e820_done
+    add di, 24
+    inc bp
+    test ebx, ebx
+    jnz .e820_next
+.e820_done:
+    mov ax, bp
+    mov word [es:0x5014], ax
+    mov word [es:0x5016], 0
+    ; pass EBX = 0x00005000 to kernel in protected mode later (optional)
     mov bx, 0x5000
 
     ; Enter protected mode
