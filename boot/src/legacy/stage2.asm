@@ -553,6 +553,13 @@ protected_mode_start:
 
 bits 16
 
+; Final error handler
+.final_error:
+    mov si, msg_final_err
+    call print_string
+    cli
+    hlt
+
 ; Print string
 print_string:
     push ax
@@ -770,11 +777,11 @@ verify_a20:
     mov bx, 0
     mov al, [ds:bx]
     mov ah, [es:bx]
-    mov [ds:bx], 0x5A
-    mov [es:bx], 0xA5
-    cmp [ds:bx], 0x5A
+    mov byte [ds:bx], 0x5A
+    mov byte [es:bx], 0xA5
+    cmp byte [ds:bx], 0x5A
     jne .set_carry
-    cmp [es:bx], 0xA5
+    cmp byte [es:bx], 0xA5
     jne .set_carry
     clc
     jmp .done
