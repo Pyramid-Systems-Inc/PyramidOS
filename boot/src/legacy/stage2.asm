@@ -230,7 +230,7 @@ stage2_start:
     pop ds
     mov si, msg_hdr_err
     call print_string
-    jmp .final_error
+    jmp final_error
 
 .lba_not_supported:
     ; No extensions; use CHS
@@ -248,7 +248,7 @@ stage2_start:
     mov dl, [boot_drive]
     mov ah, 0x08
     int 0x13
-    jc .final_error
+    jc final_error
     mov al, cl
     and al, 0x3F
     mov [spt], al               ; sectors per track
@@ -264,7 +264,7 @@ stage2_start:
     xor bx, bx
     mov ax, 1
     call chs_read_lba_count     ; reads 1 sector
-    jc .final_error
+    jc final_error
 
     ; Validate magic
     push ds
@@ -377,7 +377,7 @@ stage2_start:
     call disk_reset
     dec si
     jnz .chs_try
-    jc .final_error
+    jc final_error
 .chs_ok:
 
     ; advance pointers
@@ -393,7 +393,7 @@ stage2_start:
     pop ds
     mov si, msg_hdr_err
     call print_string
-    jmp .final_error
+    jmp final_error
     
 .kernel_loaded:
     ; Restore ES
@@ -554,7 +554,7 @@ protected_mode_start:
 bits 16
 
 ; Final error handler
-.final_error:
+final_error:
     mov si, msg_final_err
     call print_string
     cli
