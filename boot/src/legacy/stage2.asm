@@ -5,7 +5,9 @@ org 0x8000
 ; Constants
 KERNEL_LOAD_SEG     equ 0x1000
 KERNEL_LOAD_OFF     equ 0x0000
-KERNEL_LBA          equ 60              ; May be overridden by -D at build
+%ifndef KERNEL_LBA
+%define KERNEL_LBA 60                   ; Allow -D KERNEL_LBA=... to override
+%endif
 SCRATCH_SEG         equ 0x0600          ; Buffer for header reads
 
 ; Entry point
@@ -28,18 +30,18 @@ stage2_start:
     call print_string
     
     ; Probe for INT 13h extensions
-    mov ah, 0x41
+    mov ah, 0x41        
     mov bx, 0x55AA
     mov dl, [boot_drive]
     int 0x13
     jc .lba_not_supported
     cmp bx, 0xAA55
     jne .lba_not_supported
-
+    
     ; === LBA path ===
     mov si, msg_lba
     call print_string
-
+    
     ; 1) Read header sector at KERNEL_LBA to SCRATCH_SEG:0000
     call disk_reset
     mov ax, SCRATCH_SEG
@@ -235,12 +237,12 @@ stage2_start:
     mov si, msg_no_lba
     call print_string
     ; fallthrough
-
+    
 .use_chs:
     ; === CHS path ===
     mov si, msg_chs
     call print_string
-
+    
     ; Reset disk and get geometry
     call disk_reset
     mov dl, [boot_drive]
@@ -351,13 +353,13 @@ stage2_start:
     mov bx, 0
     mov bl, [spt]
     div bx                      ; AX=quot, DX=sector_index (0-based)
-    mov si, dx                  ; SI = sector_index
+    mov si, dx                  ; SI = sector_index (for possible debug)
     xor dx, dx
     mov bx, 0
     mov bl, [heads]
     div bx                      ; AX=cylinder, DX=head
     mov ch, al                  ; CH = cylinder low 8 bits
-    mov cl, sil                 ; sector_index low 8
+    mov cl, dl                  ; CL = sector_index (low 8 bits)
     inc cl                      ; sector number (1-based)
     and cl, 0x3F                ; keep sector low 6 bits
     mov al, ch
@@ -401,7 +403,7 @@ stage2_start:
     ; Success
     mov si, msg_kernel_ok
     call print_string
-
+    
     ; Read expected checksum from header and compare to accumulated
     mov ax, SCRATCH_SEG
     mov es, ax
@@ -494,7 +496,7 @@ stage2_start:
     mov word [es:0x5016], 0
     ; pass EBX = 0x00005000 to kernel in protected mode later (optional)
     mov bx, 0x5000
-
+    
     ; Enter protected mode
     mov si, msg_pmode
     call print_string
