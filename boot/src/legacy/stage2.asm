@@ -7,6 +7,7 @@
 ; 3. Load Kernel Image (Parsing custom header).
 ; 4. Enter Protected Mode (32-bit).
 ; 5. Jump to Kernel Entry (0x10000).
+; 6. Robust Disk I/O with LBA and CHS Fallback.
 ; ==============================================================================
 
 bits 16
@@ -24,6 +25,10 @@ E820_MAP_ADDR       equ 0x5020      ; Phys address for E820 map
 ; Magic string expected in Kernel Header "PyrImg01"
 MAGIC_SIG_1         equ 0x49727950  ; "PyrI" (Little Endian)
 MAGIC_SIG_2         equ 0x3130676D  ; "mg01" (Little Endian)
+
+; Floppy Geometry (Standard 1.44MB)
+SECTORS_PER_TRACK   equ 18
+HEADS_PER_CYLINDER  equ 2
 
 ; ------------------------------------------------------------------------------
 ; Entry Point
@@ -76,7 +81,7 @@ stage2_main:
 
     mov eax, KERNEL_LBA
     mov cx, 1
-    call read_sectors_lba
+    call read_sectors_universal  ; Universal Read
     
     ; 5. Validate Header
     ; Check Magic "PyrImg01"
@@ -94,7 +99,7 @@ stage2_main:
     ; Offset 8 in header = Kernel Size (bytes)
     mov eax, [es:8]         ; Load 32-bit size
     mov [kernel_size], eax
-    
+
     ; Calculate sector count: (Size + 511) / 512
     add eax, 511
     shr eax, 9              ; Divide by 512
@@ -103,7 +108,7 @@ stage2_main:
     ; 7. Load Kernel Body
     ; Destination: KERNEL_LOAD_SEG:0000
     ; Start LBA: KERNEL_LBA + 1 (Skip header sector)
-    
+
     mov si, msg_loading
     call print_string
 
@@ -112,14 +117,14 @@ stage2_main:
     xor bx, bx              ; Destination Offset
     
     mov eax, KERNEL_LBA + 1 ; Start LBA
-    mov cx, [kernel_sectors]; Count
-    
+    movzx ecx, word [kernel_sectors]
+
     ; Read loop handling 64KB boundaries is inside read_sectors_lba? 
     ; No, the simple reader below assumes small reads.
     ; We need a robust loop here.
     
     call read_kernel_robust
-    
+
     mov si, msg_kernel_ok
     call print_string
 
@@ -131,13 +136,13 @@ stage2_main:
 
     ; 10. Enter Protected Mode
     cli                     ; Disable interrupts for good
-    
+
     lgdt [gdt_descriptor]   ; Load GDT
-    
+
     mov eax, cr0
     or eax, 1               ; Set PE bit
     mov cr0, eax
-    
+
     ; Far jump to flush pipeline
     jmp 0x08:pmode_entry
 
@@ -174,11 +179,11 @@ pmode_entry:
 bits 16
 
 ; ------------------------------------------------------------------------------
-; Subroutines
+; Robust Disk Routines (LBA + CHS Fallback)
 ; ------------------------------------------------------------------------------
 
 ; Routine: read_kernel_robust
-; Inputs: EAX = Start LBA, CX = Total Sectors, ES:BX = Dest
+; Handles 64KB segments and calls universal read
 read_kernel_robust:
 .loop:
     cmp cx, 0
@@ -189,9 +194,7 @@ read_kernel_robust:
     push es             ; Save Segment
     push bx             ; Save Offset
 
-    ; Calculate how many sectors fit in current segment (64KB limit)
-    ; Limit = (0x10000 - BX) / 512
-    xor edx, edx
+    ; Limit to segment boundary
     mov dx, 0
     sub dx, bx          ; Bytes remaining in segment (0 means 64KB free if bx=0)
     jz .full_seg        ; If 0, we have full 64KB
@@ -201,90 +204,31 @@ read_kernel_robust:
 .calc_sec:
     shr dx, 9           ; Convert bytes to sectors
     
-    ; If sectors remaining (CX) < space in segment (DX), read CX
+    ; Limit to reasonable batch (e.g. 18 sectors = 1 track for CHS safety)
+    cmp dx, 18
+    jbe .limit_check
+    mov dx, 18
+.limit_check:
+
     cmp cx, dx
     jbe .read_count
     mov cx, dx          ; Otherwise read max fit
 .read_count:
-    ; CX now has safe sector count for this batch
-    ; EAX has LBA
-    ; ES:BX has Dest
     
-    ; Use the DAP reader
-    call read_sectors_lba_chunk
-    
-    ; Update counters
-    pop bx
-    pop es
-    
-    ; Advance Memory Pointer
-    ; We read CX sectors. 
-    ; Bytes = CX * 512.
-    ; Add to ES:BX. logic: 
-    ; Since we only read what fits in segment, we just advance ES mostly?
-    ; Actually, simpler: Update LBA and Count, loop.
-    ; If we hit segment limit, we must normalize ES:BX.
-    
-    ; Recover CX (count just read) from stack? No, we popped above? No.
-    ; Let's restart logic cleanly.
-    
-    ; We need to save the count we Just read to subtract it.
-    ; The stack has: [LBA, TotalCount, Seg, Off]
-    ; The registers were popped.
-    
-    ; Rethink loop structure for safety:
-    ; 1. Save Context.
-    ; 2. Determine N = sectors to read (min(Total, limit)).
-    ; 3. Read N.
-    ; 4. Update LBA += N.
-    ; 5. Update Total -= N.
-    ; 6. Update Memory Pointer:
-    ;    BX += N*512. If overflow/wrap, increment ES by 0x1000 (4K paragraphs = 64K bytes)
-    ; 7. Restore Context needed.
-    
-    ; Simplified: We just read 1 sector at a time for extreme safety/simplicity?
-    ; No, that's slow.
-    
-    ; Implementation for this specific step:
-    ; Use the count in CX (calculated limit).
-    ; Call read.
-    
-    pop cx              ; Restore Total
-    pop eax             ; Restore LBA
-    
-    ; Wait, the stack manipulation is getting messy.
-    ; Let's use variables.
     mov [tmp_lba], eax
     mov [tmp_count], cx
     
-    ; Calculate Limit again
-    ; DX = (0x10000 - BX) >> 9
-    mov dx, 0
-    sub dx, bx
-    jz .limit_64k
-    shr dx, 9
-    jmp .limit_check
-.limit_64k:
-    mov dx, 128         ; Cap at 128 sectors (64KB)
-.limit_check:
-    
-    mov cx, [tmp_count]
-    cmp cx, dx
-    jbe .do_read
-    mov cx, dx
-.do_read:
-    ; Read CX sectors from [tmp_lba] to ES:BX
+    ; Call Universal Read
     mov eax, [tmp_lba]
-    call read_sectors_lba_chunk
+    call read_sectors_universal
     
     ; Advance
-    add [tmp_lba], cx   ; LBA += ReadCount
-    sub [tmp_count], cx ; Remaining -= ReadCount
+    mov cx, [tmp_count]
+    pop bx
+    pop es
     
-    ; Advance Buffer
-    ; Since we read until segment boundary or finish, 
-    ; if we hit boundary, BX wraps to 0, ES += 0x1000
-    shl cx, 9           ; Bytes read
+    push cx
+    shl cx, 9
     add bx, cx
     jnc .no_seg_wrap
     ; Overflow
@@ -293,19 +237,33 @@ read_kernel_robust:
     mov es, dx
     ; BX wraps naturally if we did math right (it would be 0)
 .no_seg_wrap:
+    pop cx
     
-    mov eax, [tmp_lba]
-    mov cx, [tmp_count]
+    pop dx  ; Old total
+    pop eax ; Old LBA
+    
+    add eax, ecx
+    sub dx, cx
+    mov cx, dx
     jmp .loop
 
 .done:
     ret
 
-; Routine: read_sectors_lba_chunk
-; Input: EAX = LBA, CX = Count, ES:BX = Buffer
-read_sectors_lba_chunk:
+; Routine: read_sectors_universal
+; Tries LBA, falls back to CHS
+; Input: EAX = LBA, CX = Count (Max 64), ES:BX = Buffer
+read_sectors_universal:
     pushad
     
+    ; Save arguments for retry
+    mov [retry_lba], eax
+    mov [retry_cnt], cx
+    mov [retry_seg], es
+    mov [retry_off], bx
+
+    ; Attempt 1: LBA (INT 13h AH=42h)
+    ; Fill DAP
     mov [dap_lba_low], eax
     mov [dap_num], cx
     mov [dap_off], bx
@@ -315,18 +273,80 @@ read_sectors_lba_chunk:
     mov dl, [boot_drive]
     mov si, dap
     int 0x13
-    jc .read_err
+    jnc .success    ; If CF=0, LBA worked
+
+    ; Attempt 2: CHS Fallback (INT 13h AH=02h)
+    ; Reset Disk First
+    mov ah, 0
+    mov dl, [boot_drive]
+    int 0x13
     
+    ; Restore args
+    mov eax, [retry_lba]
+    mov cx, [retry_cnt]
+    mov es, [retry_seg]
+    mov bx, [retry_off]
+    
+    ; Convert LBA to CHS
+    ; LBA = (C * H + H) * S + (S - 1)
+    ; Sector = (LBA % 18) + 1
+    ; Cylinder = (LBA / 18) / 2
+    ; Head = (LBA / 18) % 2
+    
+    push bx ; Save buffer offset
+    
+    ; 1. Calculate Sector
+    xor edx, edx
+    mov ebx, SECTORS_PER_TRACK
+    div ebx     ; EAX = LBA / 18, EDX = LBA % 18
+    
+    inc dx      ; Sector is 1-based
+    mov [chs_sector], dl
+    
+    ; 2. Calculate Head & Cylinder
+    ; EAX currently holds (LBA / 18)
+    xor edx, edx
+    mov ebx, HEADS_PER_CYLINDER
+    div ebx     ; EAX = Cyl, EDX = Head
+    
+    mov [chs_head], dl
+    mov [chs_cyl], ax
+    
+    pop bx      ; Restore buffer offset
+    
+    ; Perform Read
+    mov ah, 0x02
+    mov al, [retry_cnt] ; Sector Count
+    mov ch, [chs_cyl]   ; Cylinder Low
+    mov cl, [chs_sector]; Sector
+    mov dh, [chs_head]  ; Head
+    mov dl, [boot_drive]; Drive
+    
+    ; Handle High Cylinder bits (rare for floppy, but good practice)
+    ; (Assuming Cyl < 255 for 1.44MB floppy)
+    
+    int 0x13
+    jnc .success
+
+    ; Error
+    jmp .io_error
+
+.success:
     popad
     ret
-.read_err:
+
+.io_error:
     mov si, msg_disk_err
     call print_string
+    ; Print error code in AH
+    mov al, ah
+    call print_hex
     cli
     hlt
 
-; Routine: setup_boot_info
-; Populates struct at 0x5000
+; ------------------------------------------------------------------------------
+; Helpers
+; ------------------------------------------------------------------------------
 setup_boot_info:
     push es
     xor ax, ax
@@ -365,8 +385,7 @@ do_e820:
     mov di, E820_MAP_ADDR
     xor ebx, ebx        ; Continuation value (must be 0 start)
     xor bp, bp          ; Counter
-    
-.e820_loop:
+.loop:
     mov eax, 0xE820
     mov ecx, 24         ; Buffer size
     mov edx, 0x534D4150 ; 'SMAP'
@@ -375,13 +394,13 @@ do_e820:
     
     cmp eax, 0x534D4150 ; Check signature
     jne .done
-    
+
     add di, 24          ; Next entry
     inc bp
-    
-    test ebx, ebx       ; If EBX=0, list done
-    jnz .e820_loop
 
+    test ebx, ebx       ; If EBX=0, list done
+    jnz .loop
+    
 .done:
     mov [e820_entry_count], bp
     pop es
@@ -450,6 +469,28 @@ print_string:
     pop ax
     ret
 
+print_hex:
+    push ax
+    push cx
+    mov cl, al
+    shr al, 4
+    call .nibble
+    mov al, cl
+    and al, 0x0F
+    call .nibble
+    pop cx
+    pop ax
+    ret
+.nibble:
+    add al, '0'
+    cmp al, '9'
+    jle .print
+    add al, 7
+.print:
+    mov ah, 0x0E
+    int 0x10
+    ret
+
 ; ------------------------------------------------------------------------------
 ; Data
 ; ------------------------------------------------------------------------------
@@ -460,6 +501,15 @@ e820_entry_count: dw 0
 tmp_lba:         dd 0
 tmp_count:       dw 0
 
+retry_lba:       dd 0
+retry_cnt:       dw 0
+retry_seg:       dw 0
+retry_off:       dw 0
+
+chs_cyl:         dw 0
+chs_head:        db 0
+chs_sector:      db 0
+
 msg_banner:      db 'Stage2...', 13, 10, 0
 msg_a20_ok:      db 'A20 ON', 13, 10, 0
 msg_a20_fail:    db 'A20 Fail', 13, 10, 0
@@ -468,7 +518,7 @@ msg_loading:     db 'Loading Kernel...', 13, 10, 0
 msg_hdr_ok:      db 'Header OK', 13, 10, 0
 msg_bad_magic:   db 'Bad Magic', 0
 msg_kernel_ok:   db 'Kernel Loaded', 13, 10, 0
-msg_disk_err:    db 'Disk Err', 0
+msg_disk_err:    db 'Disk Err:', 0
 
 ; Disk Address Packet
 align 4
@@ -484,24 +534,11 @@ dap_lba_high: dd 0
 ; Global Descriptor Table (GDT)
 align 8
 gdt_start:
-    dq 0x0000000000000000   ; Null Descriptor
-    
-    ; Code Segment (0x08): Base=0, Limit=4GB, Exec/Read, 32-bit, 4K granularity
-    dw 0xFFFF               ; Limit low
-    dw 0x0000               ; Base low
-    db 0x00                 ; Base middle
-    db 10011010b            ; Access (Present, Ring0, Code, Exec/Read)
-    db 11001111b            ; Flags (Granularity 4K, 32-bit) + Limit high
-    db 0x00                 ; Base high
-
-    ; Data Segment (0x10): Base=0, Limit=4GB, Read/Write
-    dw 0xFFFF
-    dw 0x0000
-    db 0x00
-    db 10010010b            ; Access (Present, Ring0, Data, Read/Write)
-    db 11001111b
-    db 0x00
-
+    dq 0
+    ; Code
+    dw 0xFFFF, 0x0000, 0x9A00, 0x00CF
+    ; Data
+    dw 0xFFFF, 0x0000, 0x9200, 0x00CF
 gdt_end:
 
 gdt_descriptor:
