@@ -32,7 +32,7 @@
 | **Interrupts (IDT)** | ✅ | Exception handling (Page Faults, Div-by-zero) & Hardware IRQs. |
 | **Virtual Memory (VMM)** | ✅ | Paging Enabled (CR3/CR0), Identity Mapping, Kernel Higher-Half (Partial). |
 | **Hardware Interrupts** | ✅ | 8259 PIC Remapping, IRQ Masking/Unmasking. |
-| **Kernel Heap** | 🚧 | Dynamic memory (`kmalloc`/`kfree`) for kernel objects. |
+| **Kernel Heap** | 🚧 | **[NEXT PRIORITY]** Dynamic memory (`kmalloc`/`kfree`) for kernel objects. |
 | **Multitasking** | 📅 | Custom Process Control Blocks (PCB), Round-Robin Scheduler. |
 
 ---
@@ -43,12 +43,12 @@
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
-| **Keyboard Driver** | 🚧 | **[CURRENT PRIORITY]** Scancode translation, Buffer management. |
-| **Text Shell (KShell)** | 📅 | Basic command interpreter (`help`, `mem`, `clear`). |
-| **Storage Drivers** | 📅 | ATA/PIO driver for reading hard disks. |
+| **Keyboard Driver** | ✅ | Scancode translation, Circular Buffer, Shift/Caps support. |
+| **Text Shell (KShell)** | ✅ | Interactive CLI, Command parsing, History (Basic). |
+| **RTC/CMOS** | ✅ | Real-Time Clock driver for system Date/Time. |
+| **System Timer** | ✅ | PIT Driver (100Hz) for uptime and sleep. |
+| **Storage Drivers** | 📅 | **[PLANNED]** ATA/PIO driver for reading hard disks. |
 | **Filesystem (VFS)** | 📅 | Virtual File System abstraction layer. |
-| **Pyramid FS (PyFS)** | 📅 | Custom filesystem or FAT32 implementation for boot. |
-| **RTC/CMOS** | 📅 | Real-Time Clock driver for system time. |
 
 ---
 
@@ -62,7 +62,7 @@
 | **System Calls** | 📅 | Custom `INT 0x80` or `SYSENTER` API interface. |
 | **PXF Loader** | 📅 | **Pyramid Executable Format**. A custom binary format parser. |
 | **PyLib** | 📅 | Custom Standard Library (not POSIX compliant, optimized for Pyramid). |
-| **Config Database** | 📅 | A custom hierarchical binary configuration store (replacing Registry). |
+| **Config Database** | 📅 | A custom hierarchical binary configuration store. |
 
 ---
 

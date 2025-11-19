@@ -38,6 +38,7 @@ void execute_command(void)
         term_print("  time    - Show current date and time\n", 0x07);
         term_print("  sleep   - Sleep for 1 second\n", 0x07);
         term_print("  reboot  - Restart the system\n", 0x07);
+        term_print("  crash   - Force a kernel crash (for testing)\n", 0x07);
     }
     else if (strcmp(cmd_buffer, "clear") == 0)
     {
@@ -99,6 +100,12 @@ void execute_command(void)
             good = inb(0x64);
         outb(0x64, 0xFE);
         asm volatile("hlt");
+    }
+    else if (strcmp(cmd_buffer, "crash") == 0)
+    {
+        term_print("Forcing a crash...\n", 0x0C);
+        int *p = (int *)0xC0000000; // Accessing unmapped memory (High address)
+        *p = 0;                     // Should trigger Page Fault
     }
     else if (strlen(cmd_buffer) > 0)
     {

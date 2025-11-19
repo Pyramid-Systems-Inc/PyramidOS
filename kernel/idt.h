@@ -3,6 +3,20 @@
 
 #include <stdint.h>
 
+// --- Data Structures ---
+
+// Structure of the stack passed by isr_common_stub (Assembly)
+// CRITICAL: This matches the 'pusha' and 'push' order in idt_asm.asm
+typedef struct
+{
+    uint32_t ds;                                     // Data segment pushed manually
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax; // Pushed by pusha
+    uint32_t int_no, err_code;                       // Pushed by ISR stub
+    uint32_t eip, cs, eflags, useresp, ss;           // Pushed by CPU
+} Registers;
+
+// --- IDT Structures ---
+
 // IDT Gate Types
 #define IDT_TASK_GATE 0x5
 #define IDT_INT_GATE_16 0x6
@@ -27,7 +41,7 @@ typedef struct __attribute__((packed))
     uint32_t base;  // Linear address of the IDT array
 } IdtPtr;
 
-// API
+// --- API ---
 void idt_init(void);
 void idt_set_gate(int n, uint32_t handler, uint16_t selector, uint8_t type);
 

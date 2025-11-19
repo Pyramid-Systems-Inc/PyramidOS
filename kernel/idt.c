@@ -4,6 +4,7 @@
 #include "stdint.h"
 #include "keyboard.h"
 #include "timer.h"
+#include "debug.h"
 
 // Access the print functions from main.c
 extern void term_print(const char *str, uint8_t color);
@@ -139,15 +140,6 @@ void idt_init(void)
     term_print("IDT Loaded. Interrupts configured.\n", 0x0F);
 }
 
-// Structure of the stack passed by isr_common_stub
-typedef struct
-{
-    uint32_t ds;                                     // Data segment pushed manually
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax; // Pushed by pusha
-    uint32_t int_no, err_code;                       // Pushed by ISR stub
-    uint32_t eip, cs, eflags, useresp, ss;           // Pushed by CPU
-} Registers;
-
 // The Central Interrupt Handler
 void isr_handler(Registers regs)
 {
@@ -172,28 +164,22 @@ void isr_handler(Registers regs)
         return;
     }
 
-    // --- Part B: CPU Exceptions (Errors) ---
-    term_print("\n*** CPU EXCEPTION ***\n", 0x0C); // Red
-    term_print("INT Number: 0x", 0x0F);
-    term_print_hex(regs.int_no, 0x0F);
-    term_print("\nError Code: 0x", 0x0F);
-    term_print_hex(regs.err_code, 0x0F);
-    term_print("\n", 0x0F);
+    // --- Part B: CPU Exceptions (The Crash Logic) ---
 
-    if (regs.int_no == 13)
-    {
-        term_print("GENERAL PROTECTION FAULT\n", 0x0C);
-    }
+    // Map common exceptions to messages
+    const char *msg = "Unknown Exception";
+
+    if (regs.int_no == 0)
+        msg = "Divide By Zero";
+    else if (regs.int_no == 13)
+        msg = "General Protection Fault";
     else if (regs.int_no == 14)
-    {
-        term_print("PAGE FAULT\n", 0x0C);
-    }
-    else if (regs.int_no == 0)
-    {
-        term_print("DIVIDE BY ZERO\n", 0x0C);
-    }
+        msg = "Page Fault";
+    else if (regs.int_no == 6)
+        msg = "Invalid Opcode";
+    else if (regs.int_no == 8)
+        msg = "Double Fault";
 
-    term_print("System Halted.\n", 0x0C);
-    while (1)
-        __asm__ volatile("cli; hlt");
+    // Call the professional panic handler
+    panic_with_regs(msg, &regs);
 }
