@@ -11,10 +11,10 @@
 
 ### Task 1.1: Scancode Translation
 
-- [ ] Create `kernel/keyboard.c` and `kernel/keyboard.h`.
-- [ ] Define `scancode_set1` array mapping indices `0x00`-`0x58` to ASCII characters.
-- [ ] Handle **Printable Characters** (a-z, 0-9, symbols).
-- [ ] Handle **Control Keys** (Enter `\n`, Backspace `\b`).
+- [x] Create `kernel/keyboard.c` and `kernel/keyboard.h`.
+- [x] Define `scancode_set1` array mapping indices `0x00`-`0x58` to ASCII characters.
+- [x] Handle **Printable Characters** (a-z, 0-9, symbols).
+- [x] Handle **Control Keys** (Enter `\n`, Backspace `\b`).
 
 ### Task 1.2: State Management
 

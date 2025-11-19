@@ -77,6 +77,9 @@ $(BUILD_DIR)/vmm.o: $(KERNEL_DIR)/vmm.c | $(BUILD_DIR)
 $(BUILD_DIR)/pic.o: $(KERNEL_DIR)/pic.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/keyboard.o: $(KERNEL_DIR)/keyboard.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # 4. Link Kernel (Combine ALL Objects)
 # CRITICAL: entry.o must be linked, but the linker script handles the order.
 OBJECTS = $(BUILD_DIR)/entry.o \
@@ -86,7 +89,8 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/idt.o \
           $(BUILD_DIR)/idt_asm.o \
           $(BUILD_DIR)/vmm.o \
-          $(BUILD_DIR)/pic.o
+          $(BUILD_DIR)/pic.o \
+		  $(BUILD_DIR)/keyboard.o
 
 $(KERNEL_BIN): $(OBJECTS)
 	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel.elf $^
