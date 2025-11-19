@@ -1,11 +1,13 @@
 #include "idt.h"
+#include "pic.h"
+#include "io.h" 
 #include "stdint.h"
 
-// Access the print functions from main.c (External for now)
+// Access the print functions from main.c
 extern void term_print(const char* str, uint8_t color);
 extern void term_print_hex(uint32_t n, uint8_t color);
 
-// Define IDT array (256 entries)
+// Define IDT array (256 entries) and Pointer
 __attribute__((aligned(0x10))) 
 static IdtEntry idt[256];
 static IdtPtr idt_ptr;
@@ -13,14 +15,23 @@ static IdtPtr idt_ptr;
 // Assembly helpers
 extern void idt_load(uint32_t idt_ptr);
 
-// ISR Prototypes from Assembly
+// ISR Prototypes from Assembly (Exceptions)
 extern void isr0(); extern void isr1(); extern void isr2(); extern void isr3();
 extern void isr4(); extern void isr5(); extern void isr6(); extern void isr7();
 extern void isr8(); extern void isr9(); extern void isr10(); extern void isr11();
 extern void isr12(); extern void isr13(); extern void isr14(); extern void isr15();
 extern void isr16(); extern void isr17(); extern void isr18(); extern void isr19();
-extern void isr20();
+extern void isr20(); extern void isr21(); extern void isr22(); extern void isr23();
+extern void isr24(); extern void isr25(); extern void isr26(); extern void isr27();
+extern void isr28(); extern void isr29(); extern void isr30(); extern void isr31();
 
+// IRQ Prototypes from Assembly (Hardware)
+extern void irq0(); extern void irq1(); extern void irq2(); extern void irq3();
+extern void irq4(); extern void irq5(); extern void irq6(); extern void irq7();
+extern void irq8(); extern void irq9(); extern void irq10(); extern void irq11();
+extern void irq12(); extern void irq13(); extern void irq14(); extern void irq15();
+
+// Helper to populate a single gate
 void idt_set_gate(int n, uint32_t handler, uint16_t selector, uint8_t type) {
     idt[n].offset_low = handler & 0xFFFF;
     idt[n].selector = selector;
@@ -29,16 +40,17 @@ void idt_set_gate(int n, uint32_t handler, uint16_t selector, uint8_t type) {
     idt[n].offset_high = (handler >> 16) & 0xFFFF;
 }
 
+// Initialize the IDT
 void idt_init(void) {
     idt_ptr.limit = sizeof(IdtEntry) * 256 - 1;
     idt_ptr.base  = (uint32_t)&idt;
 
-    // Clear IDT
+    // 1. Clear IDT
     for (int i=0; i<256; i++) {
         idt_set_gate(i, 0, 0x08, 0);
     }
 
-    // Install Exception Handlers
+    // 2. Install Exception Handlers (0-31)
     // 0x8E = Present | Ring0 | Interrupt Gate (32-bit)
     idt_set_gate(0, (uint32_t)isr0, 0x08, 0x8E);
     idt_set_gate(1, (uint32_t)isr1, 0x08, 0x8E);
@@ -61,11 +73,30 @@ void idt_init(void) {
     idt_set_gate(18, (uint32_t)isr18, 0x08, 0x8E);
     idt_set_gate(19, (uint32_t)isr19, 0x08, 0x8E);
     idt_set_gate(20, (uint32_t)isr20, 0x08, 0x8E);
+    // ... 21-31 can be mapped if needed, defaulting to 0
 
-    // Load
+    // 3. Install IRQ Handlers (32-47)
+    idt_set_gate(32, (uint32_t)irq0, 0x08, 0x8E);
+    idt_set_gate(33, (uint32_t)irq1, 0x08, 0x8E);
+    idt_set_gate(34, (uint32_t)irq2, 0x08, 0x8E);
+    idt_set_gate(35, (uint32_t)irq3, 0x08, 0x8E);
+    idt_set_gate(36, (uint32_t)irq4, 0x08, 0x8E);
+    idt_set_gate(37, (uint32_t)irq5, 0x08, 0x8E);
+    idt_set_gate(38, (uint32_t)irq6, 0x08, 0x8E);
+    idt_set_gate(39, (uint32_t)irq7, 0x08, 0x8E);
+    idt_set_gate(40, (uint32_t)irq8, 0x08, 0x8E);
+    idt_set_gate(41, (uint32_t)irq9, 0x08, 0x8E);
+    idt_set_gate(42, (uint32_t)irq10, 0x08, 0x8E);
+    idt_set_gate(43, (uint32_t)irq11, 0x08, 0x8E);
+    idt_set_gate(44, (uint32_t)irq12, 0x08, 0x8E);
+    idt_set_gate(45, (uint32_t)irq13, 0x08, 0x8E);
+    idt_set_gate(46, (uint32_t)irq14, 0x08, 0x8E);
+    idt_set_gate(47, (uint32_t)irq15, 0x08, 0x8E);
+
+    // 4. Load IDT Register
     idt_load((uint32_t)&idt_ptr);
     
-    term_print("IDT Loaded. CPU Exceptions enabled.\n", 0x0F);
+    term_print("IDT Loaded. Interrupts configured.\n", 0x0F);
 }
 
 // Structure of the stack passed by isr_common_stub
@@ -76,21 +107,46 @@ typedef struct {
     uint32_t eip, cs, eflags, useresp, ss;           // Pushed by CPU
 } Registers;
 
-// The central C handler for all interrupts
+// The Central Interrupt Handler
 void isr_handler(Registers regs) {
-    term_print("\n*** INTERRUPT RECEIVED ***\n", 0x0C); // Red
-    term_print("INT Number: ", 0x0F);
+    
+    // --- Part A: Hardware Interrupts (IRQs) ---
+    if (regs.int_no >= 32 && regs.int_no <= 47) {
+        
+        // IRQ 1: Keyboard
+        if (regs.int_no == 33) {
+            term_print("KEY ", 0x0F);
+            // CRITICAL: Read Scancode from Port 0x60
+            // If we don't read this, the keyboard controller locks up
+            volatile uint8_t scancode = inb(0x60);
+            (void)scancode; // unused for now
+        }
+
+        // IRQ 0: Timer (fires 18.2 times/sec by default)
+        else if (regs.int_no == 32) {
+            // term_print(".", 0x08); // Optional: print dots to see life
+        }
+
+        // Send End-Of-Interrupt (EOI) to PIC
+        // We subtract 32 to get the IRQ number (0-15)
+        pic_send_eoi(regs.int_no - 32);
+        return;
+    }
+
+    // --- Part B: CPU Exceptions (Errors) ---
+    term_print("\n*** CPU EXCEPTION ***\n", 0x0C); // Red
+    term_print("INT Number: 0x", 0x0F);
     term_print_hex(regs.int_no, 0x0F);
-    term_print("\nError Code: ", 0x0F);
+    term_print("\nError Code: 0x", 0x0F);
     term_print_hex(regs.err_code, 0x0F);
     term_print("\n", 0x0F);
 
-    if (regs.int_no == 0) {
-        term_print("EXCEPTION: DIVIDE BY ZERO\n", 0x0C);
-    } else if (regs.int_no == 13) {
-        term_print("EXCEPTION: GENERAL PROTECTION FAULT\n", 0x0C);
+    if (regs.int_no == 13) {
+        term_print("GENERAL PROTECTION FAULT\n", 0x0C);
     } else if (regs.int_no == 14) {
-        term_print("EXCEPTION: PAGE FAULT\n", 0x0C);
+        term_print("PAGE FAULT\n", 0x0C);
+    } else if (regs.int_no == 0) {
+        term_print("DIVIDE BY ZERO\n", 0x0C);
     }
 
     term_print("System Halted.\n", 0x0C);

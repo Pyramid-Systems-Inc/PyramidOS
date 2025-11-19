@@ -15,8 +15,7 @@ idt_load:
     ret
 
 ; ------------------------------------------------------------------------------
-; Exception Macros
-; Some exceptions push an error code, some don't. We normalize this.
+; Macros
 ; ------------------------------------------------------------------------------
 
 ; Macro for exceptions with NO error code (Push dummy 0)
@@ -36,6 +35,18 @@ idt_load:
         cli
         ; Error code already on stack
         push %1         ; Push interrupt number
+        jmp isr_common_stub
+%endmacro
+
+; Macro for IRQs (Hardware Interrupts)
+; IRQs behave like No-Error-Code exceptions.
+; We map IRQ 0 -> Interrupt 32, etc.
+%macro IRQ 2
+    global irq%1
+    irq%1:
+        cli
+        push 0          ; Push dummy error code
+        push %2         ; Push Interrupt Number (32-47)
         jmp isr_common_stub
 %endmacro
 
@@ -63,8 +74,37 @@ ISR_ERRCODE   17  ; Alignment Check
 ISR_NOERRCODE 18  ; Machine Check
 ISR_NOERRCODE 19  ; SIMD Exception
 ISR_NOERRCODE 20  ; Virtualization Exception
-; ... 21-31 Reserved
-ISR_NOERRCODE 32  ; Reserved (Will use for Timer later)
+ISR_NOERRCODE 21  ; Reserved
+ISR_NOERRCODE 22  ; Reserved
+ISR_NOERRCODE 23  ; Reserved
+ISR_NOERRCODE 24  ; Reserved
+ISR_NOERRCODE 25  ; Reserved
+ISR_NOERRCODE 26  ; Reserved
+ISR_NOERRCODE 27  ; Reserved
+ISR_NOERRCODE 28  ; Reserved
+ISR_NOERRCODE 29  ; Reserved
+ISR_NOERRCODE 30  ; Reserved
+ISR_NOERRCODE 31  ; Reserved
+
+; ------------------------------------------------------------------------------
+; Hardware Interrupts (IRQs) (32-47)
+; ------------------------------------------------------------------------------
+IRQ 0,  32 ; Timer
+IRQ 1,  33 ; Keyboard
+IRQ 2,  34 ; Cascade (used internally by 8259)
+IRQ 3,  35 ; COM2
+IRQ 4,  36 ; COM1
+IRQ 5,  37 ; LPT2
+IRQ 6,  38 ; Floppy
+IRQ 7,  39 ; LPT1
+IRQ 8,  40 ; CMOS/RTC
+IRQ 9,  41 ; Peripherals / Legacy SCSI / NIC
+IRQ 10, 42 ; Peripherals / SCSI / NIC
+IRQ 11, 43 ; Peripherals / SCSI / NIC
+IRQ 12, 44 ; PS/2 Mouse
+IRQ 13, 45 ; FPU / Coprocessor
+IRQ 14, 46 ; Primary ATA
+IRQ 15, 47 ; Secondary ATA
 
 ; ------------------------------------------------------------------------------
 ; Common ISR Handler
@@ -76,7 +116,7 @@ isr_common_stub:
     mov ax, ds          ; Save Data Segment
     push eax
 
-    mov ax, 0x10        ; Load Kernel Data Segment
+    mov ax, 0x10        ; Load Kernel Data Segment (0x10 is the Offset in GDT)
     mov ds, ax
     mov es, ax
     mov fs, ax
