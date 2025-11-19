@@ -1,6 +1,6 @@
 # Layer 1: Strategic Roadmap (PyramidOS)
 
-**Vision:** A modern, monolithic kernel engineered from scratch in C/Assembly, recreating the user experience of Windows 95 with modern reliability and security standards.
+**Vision:** A sovereign, monolithic kernel engineered from scratch in C/Assembly. It delivers a user experience inspired by the intuitiveness of Windows 95, but powered by a completely custom, non-proprietary internal architecture.
 
 > **Legend:**
 > ✅ = Completed | 🚧 = In Progress | 📅 = Planned | 🔮 = Long Term Vision
@@ -9,7 +9,7 @@
 
 ## 1. 🛤️ Milestone 1: The Bootloader (PyramidBL)
 
-**Goal:** reliably load the kernel payload into memory and transition the CPU to a usable state.
+**Goal:** Reliably load the kernel payload into memory and transition the CPU to a usable state.
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
@@ -33,7 +33,7 @@
 | **Virtual Memory (VMM)** | ✅ | Paging Enabled (CR3/CR0), Identity Mapping, Kernel Higher-Half (Partial). |
 | **Hardware Interrupts** | ✅ | 8259 PIC Remapping, IRQ Masking/Unmasking. |
 | **Kernel Heap** | 🚧 | Dynamic memory (`kmalloc`/`kfree`) for kernel objects. |
-| **Multitasking** | 📅 | Process Control Blocks (PCB), Context Switching, Scheduler. |
+| **Multitasking** | 📅 | Custom Process Control Blocks (PCB), Round-Robin Scheduler. |
 
 ---
 
@@ -46,36 +46,37 @@
 | **Keyboard Driver** | 🚧 | **[CURRENT PRIORITY]** Scancode translation, Buffer management. |
 | **Text Shell (KShell)** | 📅 | Basic command interpreter (`help`, `mem`, `clear`). |
 | **Storage Drivers** | 📅 | ATA/PIO driver for reading hard disks. |
-| **Filesystem (VFS)** | 📅 | Virtual File System abstraction. |
-| **FAT32 Support** | 📅 | Read/Write support for the FAT32 filesystem. |
+| **Filesystem (VFS)** | 📅 | Virtual File System abstraction layer. |
+| **Pyramid FS (PyFS)** | 📅 | Custom filesystem or FAT32 implementation for boot. |
 | **RTC/CMOS** | 📅 | Real-Time Clock driver for system time. |
 
 ---
 
-## 4. 📦 Milestone 4: Userland & Syscalls
+## 4. 📦 Milestone 4: Userland & Custom Executables
 
-**Goal:** Execute separate programs in Ring 3 protected mode.
+**Goal:** Execute separate programs using our own binary formats.
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
 | **User Mode (Ring 3)** | 📅 | GDT User Segments, TSS (Task State Segment). |
-| **System Calls** | 📅 | `INT 0x80` interface or `SYSENTER` implementation. |
-| **Program Loader** | 📅 | ELF or PE (Windows) executable parsing and loading. |
-| **Standard Library** | 📅 | `libc` implementation for user programs. |
+| **System Calls** | 📅 | Custom `INT 0x80` or `SYSENTER` API interface. |
+| **PXF Loader** | 📅 | **Pyramid Executable Format**. A custom binary format parser. |
+| **PyLib** | 📅 | Custom Standard Library (not POSIX compliant, optimized for Pyramid). |
+| **Config Database** | 📅 | A custom hierarchical binary configuration store (replacing Registry). |
 
 ---
 
 ## 5. 🖥️ Milestone 5: The Graphical User Interface
 
-**Goal:** The "Windows 95" Experience.
+**Goal:** A unique desktop environment inspired by the "Classic" 95 feel.
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
 | **Video Driver** | 📅 | VESA BIOS Extensions (VBE) linear framebuffer. |
-| **Graphics Library** | 📅 | Drawing primitives (Line, Rect, Blit). |
-| **Window Manager** | 📅 | Compositor, Z-Ordering, Event Loop. |
-| **GUI Framework** | 📅 | Controls (Buttons, Windows, Taskbar). |
-| **Desktop Shell** | 📅 | Icons, Wallpaper, Start Menu. |
+| **Graphics Engine** | 📅 | Custom 2D drawing primitives (Line, Rect, Blit). |
+| **Window Manager** | 📅 | Custom Compositor, Z-Ordering, Message Passing. |
+| **Widget Toolkit** | 📅 | Custom UI Controls (Buttons, Windows, Taskbar). |
+| **Desktop Shell** | 📅 | Icons, Wallpaper, Start Menu (Pyramid Style). |
 
 ---
 
@@ -85,7 +86,7 @@
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
-| **Networking** | 🔮 | Network Card Drivers, TCP/IP Stack. |
+| **Networking** | 🔮 | Network Card Drivers, Custom TCP/IP Stack. |
 | **Audio** | 🔮 | AC97 or SoundBlaster drivers. |
-| **USB Support** | 🔮 | UHCI/EHCI/XHCI controllers. |
-| **Symmetric Multi-Processing** | 🔮 | Multi-core support (APIC). |
+| **Pyramid Component Model**| 🔮 | Custom IPC system for object embedding (Replacing OLE/COM). |
+| **SMP** | 🔮 | Multi-core support (APIC). |

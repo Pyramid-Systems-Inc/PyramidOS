@@ -1,73 +1,65 @@
 # Layer 4: Future Concepts & Research (The "Moonshot" Backlog)
 
-This document captures long-term visions, experimental features, and ecosystem goals found in the original project definition. These are **not** currently scheduled for engineering but remain part of the ultimate vision.
+This document captures long-term visions, experimental features, and ecosystem goals. These are **not** currently scheduled for engineering but represent the ultimate sovereign vision of PyramidOS.
+
+> **Philosophy:** "Windows 95 Soul, Pyramid Heart."
+> We recreate the classic user experience, but every byte of the underlying technology is a custom, non-proprietary invention.
 
 ---
 
 ## 1. 🔮 "Blue Sky" Bootloader Innovations
 
-*From `RoadmapBL.md`*
-
 * **AI-Powered Boot:**
-  * Machine Learning models to analyze boot logs and predict hardware failures.
-  * Intelligent driver selection based on usage patterns.
-* **Cloud Integration:**
-  * Remote boot policy enforcement (Enterprise/MDM).
-  * Cloud-based configuration management (pulling `boot.cfg` from HTTP).
+  * On-device Machine Learning to analyze boot logs and predict hardware failures (S.M.A.R.T correlation).
+  * Intelligent kernel module pre-loading based on user habits.
+* **Cloud Integration (Pyramid Cloud):**
+  * Remote boot policy enforcement.
+  * Stateless booting: Pulling the latest Kernel image and User Profile (`.pdb` configs) from a secure HTTP endpoint on startup.
 * **Instant Boot:**
-  * Hibernation-based "Fast Boot" techniques (Snapshots).
-  * Predictive pre-loading of kernel modules.
+  * Hibernation-based "Snapshot Boot" techniques.
+  * Zero-copy memory restoration.
 
-## 2. 🏛️ Advanced Windows 95 Compatibility
+## 2. 🏛️ The Sovereign Application Ecosystem
 
-*From `RoadmapKR.md` - The "Soul" of the OS*
+* **Pyramid Component Model (PCM):**
+  * A custom Inter-Process Communication (IPC) standard replacing OLE/COM.
+  * Allows documents to embed live objects (e.g., a graph updating inside a text document) via shared memory pipes.
+* **Pyramid Scripting Language (PySL):**
+  * A native, system-level interpreted language for automation (replacing Batch/VBS).
+  * Deep integration with the Kernel Shell and PyDB.
+* **Advanced PXF Features:**
+  * **Dynamic Linking:** Shared libraries (`.pyl`) loaded on demand.
+  * **Security:** Mandatory code signing for all PXF binaries.
+  * **ASLR:** Address Space Layout Randomization for PXF executables.
 
-* **Virtual DOS Machine (VDM):**
-  * Emulating a Real Mode 8086 environment within Protected Mode to run legacy DOS games (Doom, Wolf3D) natively.
-* **OLE & COM (Object Linking and Embedding):**
-  * Implementing the Component Object Model runtime.
-  * Allowing compound documents and rich inter-process communication (IPC) similar to Windows 95.
-* **The Registry:**
-  * Moving beyond config files to a binary, hierarchical database (`HKEY_LOCAL_MACHINE`).
-  * Registry Hive management and atomic updates.
+## 3. ⚙️ Advanced Configuration & Persistence
 
-## 3. 🛡️ Enterprise Security & Management
+* **PyDB Clustering:**
+  * Extending the **Pyramid Configuration Database** to support atomic transactions.
+  * "Roaming Profiles": Syncing specific branches of the PyDB binary tree across the network.
+* **System State Journaling:**
+  * Rolling back system configuration changes (Undo/Redo for the OS settings) via PyDB snapshots.
 
-*From `ROADMAP.md`*
+## 4. 🛡️ Enterprise Security & Isolation
 
-* **Cryptographic Hardware:**
-  * TPM 2.0 (Trusted Platform Module) integration for Measured Boot.
-  * Hardware Security Module (HSM) support.
-* **Network Security:**
-  * Active Directory integration (Kerberos/LDAP).
-  * Group Policy Object (GPO) equivalent for system management.
-  * Full TLS 1.3 stack implementation in the bootloader.
-* **Virtualization:**
-  * Hosting Type-2 Hypervisors (running Linux/Windows inside PyramidOS).
-  * Containerization namespace isolation.
+* **Pyramid Hypervisor (PyVisor):**
+  * A Type-1 bare-metal hypervisor capability built into the kernel.
+  * Running legacy OSs (Linux, DOS) in isolated "Glass Box" containers.
+* **Cryptographic Identity:**
+  * Hardware-backed identity management (TPM 2.0 integration).
+  * Biometric authentication integration (Hello-style login) into the custom GINA.
 
-## 4. 🌐 Network Boot & Storage
+## 5. 🌐 Network & Distributed Computing
 
-*From `RoadmapBL.md`*
+* **Pyramid Transport Protocol (PTP):**
+  * A custom, lightweight transport layer optimized for LAN transfers between PyramidOS machines (inspired by NetBEUI but routed over IP).
+* **Distributed Filesystem:**
+  * Seamlessly mounting remote PyramidFS volumes.
+  * Block-level streaming for media.
 
-* **Advanced Protocols:**
-  * iSCSI Initiator (Booting from Storage Area Networks).
-  * PXE / TFTP / NBD (Network Block Device) support.
-* **Exotic Filesystems:**
-  * ZFS (OpenZFS) read support.
-  * Btrfs with snapshot rollback capabilities in the bootloader.
-
-## 5. 🏢 Ecosystem & Market Goals
-
-*From `ROADMAP.md` (Business Vision)*
+## 6. 🏢 Ecosystem Goals
 
 * **OEM Customization:**
-  * White-label branding kits for hardware vendors.
-  * Board Support Package (BSP) templates.
-* **Developer SDK:**
-  * Public API documentation for third-party drivers.
-  * Plugin marketplace for the Bootloader.
-
----
-
-> **Note:** Items from this list will be promoted to **Layer 1 (Strategy)** only when the prerequisite technologies (e.g., basic Networking, VFS, dynamic loading) are fully stable in Layer 2.
+  * "Branding Kits" allowing hardware vendors to skin the Bootloader and Desktop Shell without recompiling the kernel.
+* **The "Pyramid Store":**
+  * A decentralized package manager for PXF binaries.
