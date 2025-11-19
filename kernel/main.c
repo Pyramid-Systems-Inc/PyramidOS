@@ -6,6 +6,7 @@
 #include "bootinfo.h"
 #include "pmm.h"
 #include "idt.h"
+#include "vmm.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
 volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
@@ -81,35 +82,29 @@ void term_print_hex(uint32_t n, uint8_t color)
 /**
  * Kernel Entry Point
  */
-void k_main(void)
-{
+void k_main(void) {
     term_clear();
-    term_print("PyramidOS Kernel v0.3 - IDT Test\n", COLOR_GREEN);
-    term_print("--------------------------------\n", COLOR_WHITE);
+    term_print("PyramidOS Kernel v0.4 - VMM Test\n", 0x0A);
+    term_print("--------------------------------\n", 0x0F);
 
-    // 1. Initialize PMM
-    BootInfo *info = (BootInfo *)BOOT_INFO_ADDRESS;
+    // 1. PMM
+    BootInfo* info = (BootInfo*)BOOT_INFO_ADDRESS;
     pmm_init(info);
-    term_print("PMM Initialized.\n", COLOR_WHITE);
+    term_print("PMM OK.\n", 0x0F);
 
-    // 2. Initialize IDT
-    idt_init();
-    // Note: idt_init prints "IDT Loaded..." itself
+    // 2. IDT
+    idt_init(); // Prints "IDT Loaded..."
 
-    // 3. Trigger Crash (Divide by Zero)
-    term_print("Testing Exception Handling...\n", COLOR_WHITE);
-    term_print("Dividing by Zero in 3... 2... 1...\n", COLOR_WHITE);
+    // 3. VMM (Enable Paging)
+    term_print("Initializing VMM...\n", 0x0F);
+    vmm_init(); // Should print "VMM Initialized. Paging ENABLED."
 
-    // Volatile forces the compiler to actually generate the DIV instruction
-    // instead of optimizing it away at compile time.
-    volatile int a = 0;
-    volatile int b = 100 / a;
+    // 4. Test Continued Execution
+    // If paging failed, the CPU would have double-faulted or rebooted immediately 
+    // after setting the CR0 bit. If we see this message, identity mapping worked.
+    term_print("System is now running in Virtual Memory mode.\n", 0x0A);
 
-    // We should never reach here
-    term_print("SURVIVED CRASH? (Error!)\n", COLOR_RED);
-
-    while (1)
-    {
+    while(1) {
         __asm__ volatile("hlt");
     }
 }

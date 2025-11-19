@@ -65,8 +65,11 @@ $(BUILD_DIR)/idt.o: $(KERNEL_DIR)/idt.c | $(BUILD_DIR)
 $(BUILD_DIR)/idt_asm.o: $(KERNEL_DIR)/idt_asm.asm | $(BUILD_DIR)
 	$(ASM) -f elf32 $< -o $@
 
+$(BUILD_DIR)/vmm.o: $(KERNEL_DIR)/vmm.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # LINKER: Added idt.o and idt_asm.o to the list
-$(KERNEL_BIN): $(BUILD_DIR)/entry.o $(BUILD_DIR)/main.o $(BUILD_DIR)/string.o $(BUILD_DIR)/pmm.o $(BUILD_DIR)/idt.o $(BUILD_DIR)/idt_asm.o
+$(KERNEL_BIN): $(BUILD_DIR)/entry.o $(BUILD_DIR)/main.o $(BUILD_DIR)/string.o $(BUILD_DIR)/pmm.o $(BUILD_DIR)/idt.o $(BUILD_DIR)/idt_asm.o $(BUILD_DIR)/vmm.o
 	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel.elf $^
 	$(OBJCOPY) -O binary $(BUILD_DIR)/kernel.elf $@
 
