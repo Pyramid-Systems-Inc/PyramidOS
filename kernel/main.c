@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "bootinfo.h"
 #include "pmm.h"
+#include "idt.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
 volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
@@ -83,46 +84,29 @@ void term_print_hex(uint32_t n, uint8_t color)
 void k_main(void)
 {
     term_clear();
-    term_print("PyramidOS Kernel v0.2 - PMM Test\n", COLOR_GREEN);
+    term_print("PyramidOS Kernel v0.3 - IDT Test\n", COLOR_GREEN);
     term_print("--------------------------------\n", COLOR_WHITE);
 
     // 1. Initialize PMM
     BootInfo *info = (BootInfo *)BOOT_INFO_ADDRESS;
     pmm_init(info);
-
     term_print("PMM Initialized.\n", COLOR_WHITE);
 
-    // 2. Display Memory Stats
-    term_print("Total RAM: ", COLOR_WHITE);
-    term_print_hex(pmm_get_total_memory(), COLOR_WHITE);
-    term_print(" bytes\n", COLOR_WHITE);
+    // 2. Initialize IDT
+    idt_init();
+    // Note: idt_init prints "IDT Loaded..." itself
 
-    term_print("Free RAM:  ", COLOR_WHITE);
-    term_print_hex(pmm_get_free_memory(), COLOR_WHITE);
-    term_print(" bytes\n", COLOR_WHITE);
+    // 3. Trigger Crash (Divide by Zero)
+    term_print("Testing Exception Handling...\n", COLOR_WHITE);
+    term_print("Dividing by Zero in 3... 2... 1...\n", COLOR_WHITE);
 
-    // 3. Allocation Test
-    term_print("Attempting alloc... ", COLOR_WHITE);
-    void *page1 = pmm_alloc_page();
-    if (page1)
-    {
-        term_print("OK. Addr: ", COLOR_GREEN);
-        term_print_hex((uint32_t)page1, COLOR_GREEN);
-        term_print("\n", COLOR_GREEN);
-    }
-    else
-    {
-        term_print("FAIL (OOM)\n", COLOR_RED);
-    }
+    // Volatile forces the compiler to actually generate the DIV instruction
+    // instead of optimizing it away at compile time.
+    volatile int a = 0;
+    volatile int b = 100 / a;
 
-    term_print("Attempting alloc... ", COLOR_WHITE);
-    void *page2 = pmm_alloc_page();
-    if (page2)
-    {
-        term_print("OK. Addr: ", COLOR_GREEN);
-        term_print_hex((uint32_t)page2, COLOR_GREEN);
-        term_print("\n", COLOR_GREEN);
-    }
+    // We should never reach here
+    term_print("SURVIVED CRASH? (Error!)\n", COLOR_RED);
 
     while (1)
     {

@@ -1,5 +1,5 @@
 # ==============================================================================
-# PyramidOS Master Makefile (Fixed Directory Logic)
+# PyramidOS Master Makefile (IDT Update)
 # ==============================================================================
 
 # --- Toolchain Configuration ---
@@ -42,13 +42,10 @@ LDFLAGS = $(LDFLAGS_EXTRA) -T $(KERNEL_DIR)/linker.ld
 
 all: $(DISK_IMG)
 
-# Ensure build directory exists before building any file
 $(BUILD_DIR):
 	@mkdir -p $@
 
 # --- Kernel Compilation ---
-
-# Note: "| $(BUILD_DIR)" means "ensure directory exists, but don't rebuild if dir timestamp changes"
 
 $(BUILD_DIR)/entry.o: $(KERNEL_DIR)/entry.asm | $(BUILD_DIR)
 	$(ASM) -f elf32 $< -o $@
@@ -62,7 +59,14 @@ $(BUILD_DIR)/string.o: $(KERNEL_DIR)/string.c | $(BUILD_DIR)
 $(BUILD_DIR)/pmm.o: $(KERNEL_DIR)/pmm.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_BIN): $(BUILD_DIR)/entry.o $(BUILD_DIR)/main.o $(BUILD_DIR)/string.o $(BUILD_DIR)/pmm.o
+$(BUILD_DIR)/idt.o: $(KERNEL_DIR)/idt.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/idt_asm.o: $(KERNEL_DIR)/idt_asm.asm | $(BUILD_DIR)
+	$(ASM) -f elf32 $< -o $@
+
+# LINKER: Added idt.o and idt_asm.o to the list
+$(KERNEL_BIN): $(BUILD_DIR)/entry.o $(BUILD_DIR)/main.o $(BUILD_DIR)/string.o $(BUILD_DIR)/pmm.o $(BUILD_DIR)/idt.o $(BUILD_DIR)/idt_asm.o
 	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel.elf $^
 	$(OBJCOPY) -O binary $(BUILD_DIR)/kernel.elf $@
 
