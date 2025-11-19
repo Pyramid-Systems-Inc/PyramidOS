@@ -10,6 +10,7 @@
 #include "pic.h"
 #include "io.h"
 #include "shell.h"
+#include "timer.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
 volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
@@ -125,14 +126,17 @@ void k_main(void)
     // 3. Remap PIC
     pic_remap();
 
-    // 4. Initialize VMM
+    // 4. Initialize Timer
+    timer_init();
+
+    // 5. Initialize VMM
     vmm_init();
 
-    // 5. Enable Hardware Interrupts
-    outb(0x21, 0xFD); // Unmask Keyboard
+    // 6. Enable Hardware Interrupts
+    outb(0x21, 0xFC); // 1111 1100 (Bit 0=0, Bit 1=0)
     asm volatile("sti");
 
-    // 6. Handoff to Shell
+    // 7. Handoff to Shell
     shell_init();
     shell_run();
 

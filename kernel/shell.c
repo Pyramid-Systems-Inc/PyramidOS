@@ -3,6 +3,8 @@
 #include "string.h"
 #include "pmm.h"
 #include "io.h"
+#include "timer.h"
+#include "rtc.h"
 
 // Helper to access term_print from main.c
 extern void term_print(const char *str, uint8_t color);
@@ -32,6 +34,9 @@ void execute_command(void)
         term_print("  help    - Show this list\n", 0x07);
         term_print("  clear   - Clear the screen\n", 0x07);
         term_print("  mem     - Show memory statistics\n", 0x07);
+        term_print("  uptime  - Show system uptime\n", 0x07);
+        term_print("  time    - Show current date and time\n", 0x07);
+        term_print("  sleep   - Sleep for 1 second\n", 0x07);
         term_print("  reboot  - Restart the system\n", 0x07);
     }
     else if (strcmp(cmd_buffer, "clear") == 0)
@@ -45,6 +50,45 @@ void execute_command(void)
         term_print("\nFree RAM:  ", 0x07);
         term_print_hex(pmm_get_free_memory(), 0x07);
         term_print("\n", 0x07);
+    }
+    else if (strcmp(cmd_buffer, "uptime") == 0)
+    {
+        uint64_t t = timer_get_ticks();
+        // Ticks / 100 = Seconds
+        uint32_t seconds = (uint32_t)(t / 100);
+
+        term_print("System Uptime: ", 0x07);
+        term_print_hex(seconds, 0x07);
+        term_print(" seconds (", 0x07);
+        term_print_hex((uint32_t)t, 0x07);
+        term_print(" ticks)\n", 0x07);
+    }
+    else if (strcmp(cmd_buffer, "time") == 0)
+    {
+        DateTime dt;
+        rtc_get_time(&dt);
+
+        term_print("Date: ", 0x0B);
+        // Simple print: 2023 11 19
+        term_print_hex(dt.year, 0x0B);
+        term_print("/", 0x0B);
+        term_print_hex(dt.month, 0x0B);
+        term_print("/", 0x0B);
+        term_print_hex(dt.day, 0x0B);
+
+        term_print("\nTime: ", 0x0B);
+        term_print_hex(dt.hour, 0x0B);
+        term_print(":", 0x0B);
+        term_print_hex(dt.minute, 0x0B);
+        term_print(":", 0x0B);
+        term_print_hex(dt.second, 0x0B);
+        term_print("\n", 0x07);
+    }
+    else if (strcmp(cmd_buffer, "sleep") == 0)
+    {
+        term_print("Sleeping for 1 second...\n", 0x07);
+        timer_sleep(1000); // Sleep 1000ms
+        term_print("Done.\n", 0x07);
     }
     else if (strcmp(cmd_buffer, "reboot") == 0)
     {

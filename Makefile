@@ -83,6 +83,12 @@ $(BUILD_DIR)/keyboard.o: $(KERNEL_DIR)/keyboard.c | $(BUILD_DIR)
 $(BUILD_DIR)/shell.o: $(KERNEL_DIR)/shell.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/timer.o: $(KERNEL_DIR)/timer.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/rtc.o: $(KERNEL_DIR)/rtc.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # 4. Link Kernel (Combine ALL Objects)
 # CRITICAL: entry.o must be linked, but the linker script handles the order.
 OBJECTS = $(BUILD_DIR)/entry.o \
@@ -94,7 +100,9 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/vmm.o \
           $(BUILD_DIR)/pic.o \
 		  $(BUILD_DIR)/keyboard.o \
-		  $(BUILD_DIR)/shell.o
+		  $(BUILD_DIR)/shell.o \
+		  $(BUILD_DIR)/timer.o \
+		  $(BUILD_DIR)/rtc.o 
 
 $(KERNEL_BIN): $(OBJECTS)
 	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel.elf $^

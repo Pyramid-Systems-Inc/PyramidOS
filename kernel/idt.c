@@ -3,6 +3,7 @@
 #include "io.h"
 #include "stdint.h"
 #include "keyboard.h"
+#include "timer.h"
 
 // Access the print functions from main.c
 extern void term_print(const char *str, uint8_t color);
@@ -154,17 +155,16 @@ void isr_handler(Registers regs)
     // --- Part A: Hardware Interrupts (IRQs) ---
     if (regs.int_no >= 32 && regs.int_no <= 47)
     {
-
-        // IRQ 1: Keyboard
-        if (regs.int_no == 33)
+        // IRQ 0: Timer
+        if (regs.int_no == 32)
         {
-            keyboard_handler(); // <--- DELEGATE TO DRIVER
+            timer_handler(); // <--- CALL HANDLER
         }
 
-        // IRQ 0: Timer
-        else if (regs.int_no == 32)
+        // IRQ 1: Keyboard
+        else if (regs.int_no == 33)
         {
-            // Timer logic
+            keyboard_handler(); // <--- DELEGATE TO DRIVER
         }
 
         // Send End-Of-Interrupt (EOI) to PIC
