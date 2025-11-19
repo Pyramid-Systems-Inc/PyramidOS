@@ -4,6 +4,12 @@
 
 extern void term_print(const char *str, uint8_t color);
 
+// Buffer Configuration
+#define KB_BUFFER_SIZE 256
+static char kb_buffer[KB_BUFFER_SIZE];
+static volatile uint16_t write_ptr = 0;
+static volatile uint16_t read_ptr = 0;
+
 // State variables
 static bool shift_pressed = false;
 static bool caps_lock = false;
@@ -30,6 +36,32 @@ void keyboard_init(void)
     // Reset states
     shift_pressed = false;
     caps_lock = false;
+    write_ptr = 0;
+    read_ptr = 0;
+}
+
+// Helper: Add char to buffer
+static void buffer_write(char c)
+{
+    uint16_t next = (write_ptr + 1) % KB_BUFFER_SIZE;
+    if (next != read_ptr)
+    { // Check if full
+        kb_buffer[write_ptr] = c;
+        write_ptr = next;
+    }
+    // If full, drop the key (simple solution)
+}
+
+// Public: Read char from buffer
+char keyboard_get_char(void)
+{
+    if (read_ptr == write_ptr)
+    {
+        return 0; // Buffer empty
+    }
+    char c = kb_buffer[read_ptr];
+    read_ptr = (read_ptr + 1) % KB_BUFFER_SIZE;
+    return c;
 }
 
 void keyboard_handler(void)
@@ -55,39 +87,25 @@ void keyboard_handler(void)
         return;
     }
 
-    // --- Handle Key Presses (Make Codes) ---
-    // Ignore Break Codes (high bit set) for regular keys
+    // --- Handle Key Presses ---
     if (scancode < 0x80)
     {
-
-        if (scancode < sizeof(scancode_set1))
-        {
+        // Normal Arrays logic...
+        if (scancode < 58)
+        { // 58 is approx size of our array
             char ascii = 0;
-
-            // Determine which table to use
-            // Logic: If Shift is held OR Caps Lock is on (but acts differently for numbers)
-
             bool use_upper = false;
 
-            // Simple logic: Shift inverts case
             if (shift_pressed)
-            {
                 use_upper = true;
-            }
 
-            // Caps lock affects letters only
-            // We will handle caps lock by checking if the char is a letter 'a'-'z'
-            char normal_char = scancode_set1[scancode];
-
-            if (caps_lock)
+            // Simple letter check for Caps Lock
+            // (Assuming standard US layout where Q=0x10, P=0x19, A=0x1E, L=0x26, Z=0x2C, M=0x32)
+            // We just check the base char from set1
+            char base = scancode_set1[scancode];
+            if (caps_lock && base >= 'a' && base <= 'z')
             {
-                if (normal_char >= 'a' && normal_char <= 'z')
-                {
-                    // Invert the shift logic for letters
-                    // Shift+Caps = Lowercase 'a'
-                    // NoShift+Caps = Uppercase 'A'
-                    use_upper = !use_upper;
-                }
+                use_upper = !use_upper;
             }
 
             if (use_upper)
@@ -96,13 +114,13 @@ void keyboard_handler(void)
             }
             else
             {
-                ascii = normal_char;
+                ascii = scancode_set1[scancode];
             }
 
             if (ascii != 0)
             {
-                char str[2] = {ascii, '\0'};
-                term_print(str, 0x0F);
+                // CHANGED: Write to Buffer instead of Screen
+                buffer_write(ascii);
             }
         }
     }

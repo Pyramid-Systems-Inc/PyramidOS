@@ -8,7 +8,8 @@
 #include "idt.h"
 #include "vmm.h"
 #include "pic.h"
-#include "io.h" // Critical for outb()
+#include "io.h"
+#include "keyboard.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
 volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
@@ -95,10 +96,24 @@ void k_main(void)
     outb(0x21, 0xFD); // 1111 1101
     asm volatile("sti");
 
-    term_print("Interrupts Enabled. Press keys to test...\n", COLOR_GREEN);
+    term_print("Interrupts Enabled. Typing is now buffered.\n", COLOR_GREEN);
 
     while (1)
     {
+        // Poll for input
+        char c = keyboard_get_char();
+
+        if (c != 0)
+        {
+            // If we got a character, print it!
+            char str[2] = {c, '\0'};
+            term_print(str, COLOR_WHITE);
+        }
+
+        // This Halt is tricky:
+        // If we HLT, we stop until an interrupt fires.
+        // The IRQ will fire, write to buffer, and return.
+        // Then we wake up, read the buffer, and print.
         asm volatile("hlt");
     }
 }
