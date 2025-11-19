@@ -52,16 +52,17 @@
 
 ---
 
-## 4. 📦 Milestone 4: Userland & Custom Executables
+## 4. 📦 Milestone 4: Userland & Protected Execution
 
-**Goal:** Execute separate programs using our own binary formats.
+**Goal:** Securely execute separate programs in Ring 3 with full isolation.
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
-| **User Mode (Ring 3)** | 📅 | GDT User Segments, TSS (Task State Segment). |
+| **Higher-Half Kernel** | 📅 | **[CRITICAL]** Remap Kernel to `0xC0000000` to free lower memory for apps. |
+| **Task State (TSS)** | 📅 | **[CRITICAL]** Hardware structure for Ring 3 -> Ring 0 stack switching. |
+| **User Mode (Ring 3)** | 📅 | GDT User Segments, entering User Mode via `IRET`. |
 | **System Calls** | 📅 | Custom `INT 0x80` or `SYSENTER` API interface. |
 | **PXF Loader** | 📅 | **Pyramid Executable Format**. A custom binary format parser. |
-| **PyLib** | 📅 | Custom Standard Library (not POSIX compliant, optimized for Pyramid). |
 | **Config Database** | 📅 | A custom hierarchical binary configuration store. |
 
 ---

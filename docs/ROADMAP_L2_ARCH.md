@@ -8,33 +8,26 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 ### 1.1 Physical Memory Manager (PMM)
 
-* **Algorithm:** Bitmap Allocator.
+* **Algorithm:** Bitmap Allocator (Optimized with Next-Fit).
 * **Granularity:** 4KiB Blocks (Frames).
-* **Metadata Storage:**
-  * Location: Physical `0x00020000` (128KB mark).
-  * Structure: Bit array where `1 bit = 1 Page`.
-* **Region Locking:**
-  * `0x0000 - 0x1000`: BIOS Data Area & Null Pointer protection (Locked).
-  * `0x1000 - 0x9FC00`: Kernel Code/Data & Stack (Locked).
-  * `0x9FC00 - 0xFFFFF`: Video RAM & BIOS ROMs (Locked).
-  * `0x100000+`: Extended Memory (Free for allocation).
+* **Metadata Storage:** Physical `0x00020000`.
 
 ### 1.2 Virtual Memory Manager (VMM)
 
-* **Mechanism:** x86 Paging (CR3 Register).
-* **Structure:** Two-Level Paging (Page Directory -> Page Table -> Physical Frame).
-* **Mapping Strategy:**
-  * **Identity Mapping:** Virtual `0x00000000` -> Physical `0x00000000` (First 4MB).
-  * **Higher-Half Kernel:** Kernel mapped to `0xC0000000` (Planned).
-* **Protection:**
-  * Kernel Pages: `Supervisor | Read/Write`.
-  * User Pages: `User | Read/Write`.
+* **Mechanism:** x86 Paging (CR3).
+* **Architecture Goal (Milestone 4): Higher-Half Kernel**
+  * **User Space:** `0x00000000` to `0xBFFFFFFF` (3GB).
+  * **Kernel Space:** `0xC0000000` to `0xFFFFFFFF` (1GB).
+  * **Implementation:**
+    * Linker moves symbols to `0xC0000000`.
+    * Bootloader (or `entry.asm`) sets up a Page Table mapping `0xC00...` -> `0x001...` (Physical).
+    * This prevents User Mode apps from ever seeing Kernel code (protected by Supervisor bit).
 
 ### 1.3 Kernel Heap
 
 * **Goal:** Dynamic memory allocation (`kmalloc`/`kfree`).
-* **Algorithm:** Linked List Allocator with Coalescing.
-* **Strategy:** VMM allocates a large contiguous block of virtual pages; the Allocator manages chunks within that block.
+* **Algorithm:** Doubly Linked List with Safety Canaries.
+* **Location:** Placed in Kernel Space (e.g., starting at `0xD0000000`).
 
 ---
 
@@ -42,18 +35,16 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 ### 2.1 Interrupt Descriptor Table (IDT)
 
-* **Vector Assignment:**
-  * `0 - 31`: CPU Exceptions (Faults/Traps).
-  * `32 - 47`: Hardware Interrupts (Remapped PIC).
-  * `0x80`: System Calls (Pyramid API Entry).
-* **Handling Flow:** CPU -> ASM Stub -> C Handler -> Driver Dispatch -> EOI -> IRET.
+* **Vector Assignment:** 0-31 (Exceptions), 32-47 (IRQs), 0x80 (Syscalls).
+* **Handling Flow:** CPU -> ASM Stub -> C Handler -> Driver -> EOI -> IRET.
 
-### 2.2 Programmable Interrupt Controller (PIC)
+### 2.2 Task State Segment (TSS) - Required for Ring 3
 
-* **Chip:** 8259A (Master/Slave).
-* **Remapping:** Master `0x20` / Slave `0x28`.
-
----
+* **Role:** The x86 CPU needs to know where the **Kernel Stack** is when an interrupt occurs inside a User App.
+* **Implementation:**
+  * One TSS entry in the GDT.
+  * `ESP0` field updated by the Scheduler on every context switch.
+  * Without this, a User Mode interrupt causes a Double Fault (Stack Fault).
 
 ## 3. 🔌 Hardware Abstraction Layer (HAL)
 
