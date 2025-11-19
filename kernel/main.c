@@ -1,126 +1,76 @@
-/*
- * PyramidOS Kernel - Main Entry Point
+/* =============================================================================
+   PyramidOS Kernel - Minimal Entry (Phase 1)
+   ============================================================================= */
+
+#include <stdint.h>
+
+// VGA Text Mode Buffer Address (0xB8000)
+volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
+
+// VGA Constants
+const int VGA_COLS = 80;
+const int VGA_ROWS = 25;
+
+// Colors (Foreground | Background << 4)
+// Light Green (0xA) on Black (0x0) = 0x0A
+const uint8_t TERM_COLOR = 0x0A;
+
+/**
+ * Clears the screen to black.
  */
-
-#include "vga.h"
-#include "idt.h"
-#include "timer.h"
-#include "keyboard.h"
-#include "string.h"
-#include "stddef.h"
-
-// Print a formatted message (simple version)
-void k_printf(const char *format, int value)
+void term_clear(void)
 {
-    char buffer[32];
-    vga_write(format);
-    itoa(value, buffer, 10);
-    vga_write(buffer);
+    for (int col = 0; col < VGA_COLS; col++)
+    {
+        for (int row = 0; row < VGA_ROWS; row++)
+        {
+            // Calculate linear index: y * width + x
+            const int index = (row * VGA_COLS) + col;
+            // Write Space character (' ') with default color
+            vga_buffer[index] = ((uint16_t)TERM_COLOR << 8) | ' ';
+        }
+    }
 }
 
-// BootInfo structure passed by bootloader at physical 0x00005000 (if present)
-typedef struct BootInfo {
-    uint16_t magic_lo;     // 'OO'
-    uint16_t magic_hi;     // 'TB' => 'BOOT' when combined as 0x54424F4F
-    uint16_t version;      // 0x0001
-    uint8_t  boot_drive;   // BIOS drive number
-    uint8_t  reserved0;
-    uint16_t kernel_load_seg;
-    uint16_t kernel_load_off;
-    uint32_t kernel_size_bytes;
-    uint32_t e820_count;   // number of entries
-    uint32_t e820_ptr;     // pointer to entries (phys)
-} BootInfo;
-
-static BootInfo* get_boot_info(void)
+/**
+ * Simple string printer.
+ * Does not handle newlines/scrolling yet (Phase 2 feature).
+ * @param x Column (0-79)
+ * @param y Row (0-24)
+ * @param str Null-terminated string
+ */
+void term_print(int x, int y, const char *str)
 {
-    return (BootInfo*)0x00005000;
+    int index = (y * VGA_COLS) + x;
+
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        vga_buffer[index] = ((uint16_t)TERM_COLOR << 8) | str[i];
+        index++;
+
+        // Simple wrap-around safety
+        if (index >= VGA_COLS * VGA_ROWS)
+            break;
+    }
 }
 
-// Kernel's main function
+/**
+ * Kernel Entry Point.
+ * Called by entry.asm
+ */
 void k_main(void)
 {
-    // Write early debug message directly to VGA memory
-    volatile uint16_t *vga = (volatile uint16_t*)0xB8000;
-    vga[12] = 0x2F4D;  // 'M' in white on green
-    vga[13] = 0x2F41;  // 'A' 
-    vga[14] = 0x2F49;  // 'I'
-    vga[15] = 0x2F4E;  // 'N'
-    
-    // Initialize VGA text mode
-    vga_initialize();
+    // 1. Clear the screen (removes BIOS/Bootloader text)
+    term_clear();
 
-    // Set a nice color scheme
-    vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
-    vga_writestring("================================================================================\n");
-    vga_writestring("                           PyramidOS Kernel v0.1.0                             \n");
-    vga_writestring("================================================================================\n\n");
+    // 2. Print confirmation message
+    term_print(0, 0, "PyramidOS Kernel Initialized (C Environment Active)");
+    term_print(0, 1, "-------------------------------------------------");
+    term_print(0, 2, "Stage 2 Loaded -> Protected Mode -> C Kernel");
 
-    // Reset to normal colors
-    vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-
-    vga_writestring("[OK] VGA driver initialized\n");
-    // Try to read BootInfo
-    BootInfo* bi = get_boot_info();
-    if (bi && bi->magic_lo == 0x4F4F && bi->magic_hi == 0x5442) {
-        vga_writestring("[OK] BootInfo detected\n");
-        vga_writestring("[OK] Kernel loaded at 0x");
-        char tmp[16];
-        utoa((uint32_t)((bi->kernel_load_seg << 4) + bi->kernel_load_off), tmp, 16);
-        vga_writestring(tmp);
-        vga_writestring("\n");
-
-        // Print E820 summary
-        vga_writestring("E820 entries: ");
-        utoa(bi->e820_count, tmp, 10);
-        vga_writestring(tmp);
-        vga_writestring("\n");
-        if (bi->e820_count > 0) {
-            // Each entry is 24 bytes: base (QWORD), length (QWORD), type (DWORD)
-            typedef struct { uint32_t base_lo, base_hi, len_lo, len_hi, type; } E820;
-            E820* table = (E820*)(uintptr_t)bi->e820_ptr;
-            vga_writestring("E820[0]: base=0x");
-            utoa(table[0].base_hi, tmp, 16); vga_writestring(tmp);
-            utoa(table[0].base_lo, tmp, 16); vga_writestring(tmp);
-            vga_writestring(" len=0x");
-            utoa(table[0].len_hi, tmp, 16); vga_writestring(tmp);
-            utoa(table[0].len_lo, tmp, 16); vga_writestring(tmp);
-            vga_writestring(" type=");
-            utoa(table[0].type, tmp, 10); vga_writestring(tmp);
-            vga_writestring("\n");
-        }
-    } else {
-        vga_writestring("[OK] Kernel loaded at 0x10000\n");
-    }
-
-    // Initialize interrupt system
-    idt_init();
-    vga_writestring("[OK] Interrupt Descriptor Table initialized\n");
-    
-    // Initialize drivers
-    timer_init();
-    keyboard_init();
-    
-    // Enable interrupts
-    __asm__ volatile("sti");
-    vga_writestring("[OK] Interrupts enabled\n");
-
-    // Display some system info
-    vga_writestring("\nSystem Information:\n");
-    vga_writestring("-------------------\n");
-    vga_writestring("Kernel size: ~8 KB\n");
-    vga_writestring("Available memory: 640 KB (estimated)\n");
-
-    vga_setcolor(vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
-    vga_writestring("\n[INFO] Kernel initialization complete.\n");
-    vga_writestring("[INFO] Full kernel running with interrupts enabled.\n");
-
-    vga_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-    vga_writestring("\nPyramidOS Shell - Type 'help' for commands.\n");
-    vga_writestring("PyramidOS> ");
-
-    // Main kernel loop - interrupts will handle input and timer
-    for (;;) {
-        __asm__ volatile("hlt");  // Halt until interrupt
+    // 3. Halt loop (Keep CPU busy but doing nothing)
+    while (1)
+    {
+        __asm__ volatile("hlt");
     }
 }
