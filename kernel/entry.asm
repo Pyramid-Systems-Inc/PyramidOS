@@ -1,40 +1,50 @@
-; kernel/entry.asm
+; ==============================================================================
+; PyramidOS Kernel Entry Point
+; ==============================================================================
+; Responsibility:
+; 1. Setup Stack (16KB).
+; 2. Visual Debug (Confirm bootloader handoff).
+; 3. Jump to High-Level Kernel (k_main).
+; ==============================================================================
+
 bits 32
 
 section .text
     global _start
     extern k_main
-    
+
 _start:
-    ; CRITICAL: Disable interrupts immediately (no IDT set up yet)
+    ; 1. Safety First: Disable Interrupts (Should be off, but be sure)
     cli
     
-    ; Debug: Write "KERN" to VGA to show we reached kernel
-    mov dword [0xB8014], 0x2F452F4B  ; "KE" 
-    mov dword [0xB8018], 0x2F4E2F52  ; "RN"
+    ; 2. Visual Debug: Write "K" (White on Blue) to VGA (0xB8000)
+    ; 0x1F4B -> 0x1F (Blue Background, White Text), 0x4B ('K')
+    mov dword [0xB8000], 0x1F4B1F4B ; Write 'KK' to confirm entry
     
-    ; Set up the stack pointer
+    ; 3. Setup Stack
+    ; The stack grows downwards. We set ESP to the TOP of the reserved block.
     mov esp, kernel_stack_top
     
-    ; Debug: Write "STK" to show stack is set up
-    mov dword [0xB801C], 0x2F542F53  ; "ST"
-    mov dword [0xB8020], 0x2F202F4B  ; "K " (fixed the encoding)
+    ; 4. Environment cleanup
+    ; Clear EFLAGS (Direction flag must be clear for C compilers)
+    push 0
+    pop fd
     
-    ; Ensure we have a valid stack
-    test esp, esp
-    jz .hang
-    
-    ; Call the C kernel's main function
+    ; 5. Enter C Kernel
     call k_main
     
-    ; If k_main returns, hang the system
+    ; 6. Catch Hang
+    ; If k_main returns, we disable interrupts and halt forever.
     cli
 .hang:
     hlt
     jmp .hang
 
+; ==============================================================================
+; BSS Section (Uninitialized Data)
+; ==============================================================================
 section .bss
 align 16
 kernel_stack_bottom:
-    resb 16384 ; 16 KB
+    resb 16384          ; Reserve 16KB for Kernel Stack
 kernel_stack_top:
