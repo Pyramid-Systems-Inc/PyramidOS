@@ -1,76 +1,117 @@
 /* =============================================================================
-   PyramidOS Kernel - Minimal Entry (Phase 1)
+   PyramidOS Kernel - Main Entry Point
    ============================================================================= */
 
 #include <stdint.h>
+#include "bootinfo.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
-volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
+volatile uint16_t* vga_buffer = (uint16_t*)0xB8000;
 
 // VGA Constants
 const int VGA_COLS = 80;
 const int VGA_ROWS = 25;
+const uint8_t COLOR_GREEN = 0x0A;
+const uint8_t COLOR_WHITE = 0x0F;
+const uint8_t COLOR_RED   = 0x0C;
 
-// Colors (Foreground | Background << 4)
-// Light Green (0xA) on Black (0x0) = 0x0A
-const uint8_t TERM_COLOR = 0x0A;
+// Global cursor position (simple)
+int cursor_x = 0;
+int cursor_y = 0;
 
 /**
- * Clears the screen to black.
+ * Helper: Clear Screen
  */
-void term_clear(void)
-{
-    for (int col = 0; col < VGA_COLS; col++)
-    {
-        for (int row = 0; row < VGA_ROWS; row++)
-        {
-            // Calculate linear index: y * width + x
-            const int index = (row * VGA_COLS) + col;
-            // Write Space character (' ') with default color
-            vga_buffer[index] = ((uint16_t)TERM_COLOR << 8) | ' ';
+void term_clear(void) {
+    for (int i = 0; i < VGA_COLS * VGA_ROWS; i++) {
+        vga_buffer[i] = ((uint16_t)0x0F << 8) | ' ';
+    }
+    cursor_x = 0;
+    cursor_y = 0;
+}
+
+/**
+ * Helper: Print String
+ */
+void term_print(const char* str, uint8_t color) {
+    for (int i = 0; str[i] != '\0'; i++) {
+        // Handle newline
+        if (str[i] == '\n') {
+            cursor_x = 0;
+            cursor_y++;
+        } else {
+            int index = (cursor_y * VGA_COLS) + cursor_x;
+            vga_buffer[index] = ((uint16_t)color << 8) | str[i];
+            cursor_x++;
+        }
+
+        // Wrap
+        if (cursor_x >= VGA_COLS) {
+            cursor_x = 0;
+            cursor_y++;
         }
     }
 }
 
 /**
- * Simple string printer.
- * Does not handle newlines/scrolling yet (Phase 2 feature).
- * @param x Column (0-79)
- * @param y Row (0-24)
- * @param str Null-terminated string
+ * Helper: Print Hex (32-bit)
  */
-void term_print(int x, int y, const char *str)
-{
-    int index = (y * VGA_COLS) + x;
-
-    for (int i = 0; str[i] != '\0'; i++)
-    {
-        vga_buffer[index] = ((uint16_t)TERM_COLOR << 8) | str[i];
-        index++;
-
-        // Simple wrap-around safety
-        if (index >= VGA_COLS * VGA_ROWS)
-            break;
+void term_print_hex(uint32_t n, uint8_t color) {
+    term_print("0x", color);
+    char hex_chars[] = "0123456789ABCDEF";
+    for (int i = 28; i >= 0; i -= 4) {
+        char c = hex_chars[(n >> i) & 0xF];
+        char str[2] = {c, '\0'};
+        term_print(str, color);
     }
 }
 
 /**
- * Kernel Entry Point.
- * Called by entry.asm
+ * Kernel Entry Point
  */
-void k_main(void)
-{
-    // 1. Clear the screen (removes BIOS/Bootloader text)
+void k_main(void) {
     term_clear();
+    term_print("PyramidOS Kernel v0.1\n", COLOR_GREEN);
+    term_print("---------------------\n", COLOR_WHITE);
 
-    // 2. Print confirmation message
-    term_print(0, 0, "PyramidOS Kernel Initialized (C Environment Active)");
-    term_print(0, 1, "-------------------------------------------------");
-    term_print(0, 2, "Stage 2 Loaded -> Protected Mode -> C Kernel");
+    // 1. Access BootInfo
+    BootInfo* info = (BootInfo*)BOOT_INFO_ADDRESS;
 
-    // 3. Halt loop (Keep CPU busy but doing nothing)
-    while (1)
-    {
+    // 2. Validate Magic
+    if (info->magic != 0x54424F4F) { // "BOOT" in Little Endian
+        term_print("PANIC: Invalid BootInfo Magic!\n", COLOR_RED);
+        while(1) asm volatile("hlt");
+    }
+
+    term_print("BootInfo Detected.\n", COLOR_WHITE);
+    term_print("Kernel Size: ", COLOR_WHITE);
+    term_print_hex(info->kernel_size, COLOR_WHITE);
+    term_print(" bytes\n", COLOR_WHITE);
+
+    term_print("Memory Map Entries: ", COLOR_WHITE);
+    term_print_hex(info->mmap_count, COLOR_WHITE);
+    term_print("\n", COLOR_WHITE);
+
+    // 3. Iterate Memory Map
+    E820Entry* mmap = (E820Entry*)info->mmap_addr;
+    
+    for (uint32_t i = 0; i < info->mmap_count; i++) {
+        term_print("Region ", COLOR_WHITE);
+        term_print_hex(i, COLOR_WHITE);
+        term_print(": Base=", COLOR_WHITE);
+        term_print_hex((uint32_t)mmap[i].base, COLOR_WHITE);
+        term_print(" Len=", COLOR_WHITE);
+        term_print_hex((uint32_t)mmap[i].length, COLOR_WHITE);
+        term_print(" Type=", COLOR_WHITE);
+        
+        if (mmap[i].type == 1) {
+            term_print(" (USABLE)\n", COLOR_GREEN);
+        } else {
+            term_print(" (RESERVED)\n", COLOR_RED);
+        }
+    }
+
+    while(1) {
         __asm__ volatile("hlt");
     }
 }
