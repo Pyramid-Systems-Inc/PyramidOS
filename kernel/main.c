@@ -1,5 +1,5 @@
 /* =============================================================================
-   PyramidOS Kernel - Main Entry Point
+   PyramidOS Kernel - Main Entry Point (v0.6 Shell)
    ============================================================================= */
 
 #include <stdint.h>
@@ -9,7 +9,6 @@
 #include "vmm.h"
 #include "pic.h"
 #include "io.h"
-#include "keyboard.h"
 #include "shell.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
@@ -26,6 +25,20 @@ const uint8_t COLOR_RED = 0x0C;
 int cursor_x = 0;
 int cursor_y = 0;
 
+// Move the Blinking Hardware Cursor
+void update_cursor(int x, int y)
+{
+    uint16_t pos = y * VGA_COLS + x;
+
+    // Send Low Byte
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+
+    // Send High Byte
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
 void term_clear(void)
 {
     for (int i = 0; i < VGA_COLS * VGA_ROWS; i++)
@@ -34,6 +47,7 @@ void term_clear(void)
     }
     cursor_x = 0;
     cursor_y = 0;
+    update_cursor(0, 0); // Reset hardware cursor
 }
 
 void term_print(const char *str, uint8_t color)
@@ -51,9 +65,9 @@ void term_print(const char *str, uint8_t color)
         {
             if (cursor_x > 0)
             {
-                cursor_x--; // Move back
+                cursor_x--;
                 int index = (cursor_y * VGA_COLS) + cursor_x;
-                vga_buffer[index] = ((uint16_t)0x0F << 8) | ' '; // Erase char
+                vga_buffer[index] = ((uint16_t)0x0F << 8) | ' ';
             }
         }
         // Normal Character
@@ -71,13 +85,16 @@ void term_print(const char *str, uint8_t color)
             cursor_y++;
         }
 
-        // Simple Scrolling (move to top if full)
+        // Simple Scrolling (Move to top if full)
         if (cursor_y >= VGA_ROWS)
         {
-            cursor_y = 0; // Basic wrap for now
-            term_clear();
+            cursor_y = 0; // Basic wrap
+            term_clear(); // Usually you'd scroll up, but clear is safer for now
         }
     }
+
+    // Update the blinking cursor position after printing
+    update_cursor(cursor_x, cursor_y);
 }
 
 void term_print_hex(uint32_t n, uint8_t color)
@@ -95,34 +112,32 @@ void term_print_hex(uint32_t n, uint8_t color)
 void k_main(void)
 {
     term_clear();
-    term_print("PyramidOS Kernel v0.5 - IRQ Test\n", COLOR_GREEN);
-    term_print("--------------------------------\n", COLOR_WHITE);
+    term_print("PyramidOS Kernel v0.6 - Interactive Shell\n", COLOR_GREEN);
+    term_print("-----------------------------------------\n", COLOR_WHITE);
 
     // 1. Initialize PMM
     BootInfo *info = (BootInfo *)BOOT_INFO_ADDRESS;
     pmm_init(info);
-    term_print("PMM Initialized.\n", COLOR_WHITE);
 
     // 2. Initialize IDT
     idt_init();
 
     // 3. Remap PIC
     pic_remap();
-    term_print("PIC Remapped.\n", COLOR_WHITE);
 
     // 4. Initialize VMM
     vmm_init();
 
     // 5. Enable Hardware Interrupts
-    // Unmask IRQ1 (Keyboard) manually because pic_remap masked everything
     outb(0x21, 0xFD); // Unmask Keyboard
     asm volatile("sti");
 
-    // HANDOFF TO SHELL
+    // 6. Handoff to Shell
     shell_init();
     shell_run();
 
-    // Should never reach here
     while (1)
+    {
         asm volatile("hlt");
+    }
 }
