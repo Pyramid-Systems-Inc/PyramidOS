@@ -11,6 +11,7 @@
 #include "io.h"
 #include "shell.h"
 #include "timer.h"
+#include "heap.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
 volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
@@ -26,6 +27,53 @@ const uint8_t COLOR_RED = 0x0C;
 int cursor_x = 0;
 int cursor_y = 0;
 
+// Simple Heap Test Function
+void test_heap(void)
+{
+    term_print("\n[TEST] Heap Allocation...\n", 0x0F);
+
+    // 1. Basic Allocation
+    void *ptr1 = kmalloc(10);
+    term_print("Allocated 10 bytes at: 0x", 0x07);
+    term_print_hex((uint32_t)ptr1, 0x07);
+
+    if (ptr1 == 0)
+    {
+        term_print(" -> FAIL (Null Pointer)\n", 0x0C);
+        return;
+    }
+    term_print(" -> OK\n", 0x0A);
+
+    // 2. Write Verification
+    strcpy((char *)ptr1, "Pyramid");
+    term_print("Written Data: ", 0x07);
+    term_print((char *)ptr1, 0x07);
+    term_print("\n", 0x07);
+
+    // 3. Second Allocation (Fragmentation Check)
+    void *ptr2 = kmalloc(4096); // Large block
+    term_print("Allocated 4096 bytes at: 0x", 0x07);
+    term_print_hex((uint32_t)ptr2, 0x07);
+    term_print("\n", 0x07);
+
+    // 4. Free Logic
+    term_print("Freeing ptr1...\n", 0x0F);
+    kfree(ptr1);
+
+    // 5. Re-allocation (Should reuse the spot from ptr1 if Heap is smart)
+    void *ptr3 = kmalloc(5);
+    term_print("Allocated 5 bytes at: 0x", 0x07);
+    term_print_hex((uint32_t)ptr3, 0x07);
+
+    if (ptr3 == ptr1)
+    {
+        term_print(" -> OK (Reused freed block)\n", 0x0A);
+    }
+    else
+    {
+        term_print(" -> NOTE (New block created)\n", 0x0E);
+    }
+}
 // Move the Blinking Hardware Cursor
 void update_cursor(int x, int y)
 {
@@ -132,11 +180,18 @@ void k_main(void)
     // 5. Initialize VMM
     vmm_init();
 
-    // 6. Enable Hardware Interrupts
+    // 6. Initialize Heap
+    term_print("Initializing Heap...\n", COLOR_WHITE);
+    heap_init();
+
+    // Run Heap Test
+    test_heap();
+
+    // 7. Enable Hardware Interrupts
     outb(0x21, 0xFC); // 1111 1100 (Bit 0=0, Bit 1=0)
     asm volatile("sti");
 
-    // 7. Handoff to Shell
+    // 8. Handoff to Shell
     shell_init();
     shell_run();
 

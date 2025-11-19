@@ -8,6 +8,54 @@ extern void term_print(const char *str, uint8_t color);
 // The Kernel's Page Directory (Physical Address)
 static uint32_t *page_directory = 0;
 
+// Helper: Get or Create Page Table for a Virtual Address
+static uint32_t *vmm_get_page_table(uint32_t vaddr, int create)
+{
+    uint32_t pd_index = vaddr >> 22;
+
+    // Check if Page Table exists
+    if (page_directory[pd_index] & PDE_PRESENT)
+    {
+        return (uint32_t *)(page_directory[pd_index] & PDE_FRAME);
+    }
+
+    if (create)
+    {
+        // Create new Page Table
+        uint32_t *new_table = (uint32_t *)pmm_alloc_page();
+        memset(new_table, 0, PAGE_SIZE);
+
+        // Add to Directory
+        page_directory[pd_index] = ((uint32_t)new_table) | PDE_PRESENT | PDE_READ_WRITE;
+        return new_table;
+    }
+
+    return 0;
+}
+
+// Map a Virtual Address to a Physical Address
+void vmm_map(uint32_t vaddr, uint32_t paddr)
+{
+    uint32_t *table = vmm_get_page_table(vaddr, 1);
+    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
+
+    table[pt_index] = paddr | PTE_PRESENT | PTE_READ_WRITE;
+
+    // Flush TLB (Translation Lookaside Buffer) for this address
+    asm volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
+}
+
+// Allocate a new page at virtual address
+int vmm_alloc_page(uint32_t vaddr)
+{
+    void *phys = pmm_alloc_page();
+    if (!phys)
+        return 0; // OOM
+
+    vmm_map(vaddr, (uint32_t)phys);
+    return 1;
+}
+
 void vmm_init(void)
 {
     // 1. Allocate a Page Directory (4KB)

@@ -116,7 +116,8 @@ This uses your Linux distribution's standard compiler. It is sufficient for the 
 
 ### 🖥️ A Note on QEMU Graphics (WSL)
 
-* **Windows 11:** GUI apps (QEMU) work out of the box via WSLg.
+- **Windows 11:** GUI apps (QEMU) work out of the box via WSLg.
+
 - **Windows 10:** You may need an X Server (like [VcXsrv](https://sourceforge.net/projects/vcxsrv/)) running on Windows to see the QEMU window.
   - *VcXsrv config:* Select "Disable access control" during launch.
   - *WSL config:* `export DISPLAY=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):0`
