@@ -124,6 +124,7 @@ void shell_run(void)
 {
     while (1)
     {
+        // This function now sleeps (HLT) if no key is pressed
         char c = keyboard_get_char();
 
         if (c != 0)
@@ -155,7 +156,5 @@ void shell_run(void)
                 term_print(str, 0x0F);
             }
         }
-
-        asm volatile("hlt");
     }
 }

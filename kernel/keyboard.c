@@ -55,10 +55,16 @@ static void buffer_write(char c)
 // Public: Read char from buffer
 char keyboard_get_char(void)
 {
-    if (read_ptr == write_ptr)
+    // While buffer is empty...
+    while (read_ptr == write_ptr)
     {
-        return 0; // Buffer empty
+        // HALT the CPU.
+        // The CPU will wake up when an Interrupt occurs (IRQ1 Keyboard or IRQ0 Timer).
+        // It will handle the ISR, then return exactly here.
+        // Then the loop condition is checked again.
+        asm volatile("hlt");
     }
+
     char c = kb_buffer[read_ptr];
     read_ptr = (read_ptr + 1) % KB_BUFFER_SIZE;
     return c;
