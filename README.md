@@ -1,6 +1,6 @@
 # PyramidOS
 
-> **Kernel Version:** v0.7 (Time & Date Build)  
+> **Kernel Version:** v0.8 (Heap Enabled)  
 > **Architecture:** x86 (32-bit Protected Mode)  
 > **Boot Standard:** Legacy BIOS (Custom Bootloader)
 
@@ -23,6 +23,8 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 | **Real-Time Clock (RTC)** | ✅ Stable | CMOS register parsing for Wall Clock Time (Y/M/D H:M:S). |
 | **KShell** | ✅ Stable | Interactive command interpreter with history and backspace support. |
 | **VGA Driver** | ✅ Stable | Text Mode (80x25) with hardware cursor support. |
+| **Kernel Heap** | ✅ Stable | Doubly-linked list allocator with `kmalloc`/`kfree` and coalescing. |
+| **VMM** | ✅ Stable | Paging enabled; Heap mapped to `0xD0000000`. |
 
 ---
 
@@ -107,7 +109,7 @@ Once booted, the **KShell** accepts the following commands:
 
 ## 🔮 Roadmap Snapshot
 
-* **Current:** Input/Output, Time, Basic Shell.
-* **Next Up:** Filesystem (VFS), Storage Drivers, and Dynamic Memory (Heap).
+* **Current:** Dynamic Memory (Heap).
+* **Next Up:** Storage Drivers (ATA/PIO) and Filesystem.
 
 *See `docs/` for detailed Roadmap Layers.*
