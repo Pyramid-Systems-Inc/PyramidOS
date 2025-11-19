@@ -10,6 +10,7 @@
 #include "pic.h"
 #include "io.h"
 #include "keyboard.h"
+#include "shell.h"
 
 // VGA Text Mode Buffer Address (0xB8000)
 volatile uint16_t *vga_buffer = (uint16_t *)0xB8000;
@@ -39,21 +40,42 @@ void term_print(const char *str, uint8_t color)
 {
     for (int i = 0; str[i] != '\0'; i++)
     {
+        // Handle Newline
         if (str[i] == '\n')
         {
             cursor_x = 0;
             cursor_y++;
         }
+        // Handle Backspace
+        else if (str[i] == '\b')
+        {
+            if (cursor_x > 0)
+            {
+                cursor_x--; // Move back
+                int index = (cursor_y * VGA_COLS) + cursor_x;
+                vga_buffer[index] = ((uint16_t)0x0F << 8) | ' '; // Erase char
+            }
+        }
+        // Normal Character
         else
         {
             int index = (cursor_y * VGA_COLS) + cursor_x;
             vga_buffer[index] = ((uint16_t)color << 8) | str[i];
             cursor_x++;
         }
+
+        // Wrap Line
         if (cursor_x >= VGA_COLS)
         {
             cursor_x = 0;
             cursor_y++;
+        }
+
+        // Simple Scrolling (move to top if full)
+        if (cursor_y >= VGA_ROWS)
+        {
+            cursor_y = 0; // Basic wrap for now
+            term_clear();
         }
     }
 }
@@ -93,27 +115,14 @@ void k_main(void)
 
     // 5. Enable Hardware Interrupts
     // Unmask IRQ1 (Keyboard) manually because pic_remap masked everything
-    outb(0x21, 0xFD); // 1111 1101
+    outb(0x21, 0xFD); // Unmask Keyboard
     asm volatile("sti");
 
-    term_print("Interrupts Enabled. Typing is now buffered.\n", COLOR_GREEN);
+    // HANDOFF TO SHELL
+    shell_init();
+    shell_run();
 
+    // Should never reach here
     while (1)
-    {
-        // Poll for input
-        char c = keyboard_get_char();
-
-        if (c != 0)
-        {
-            // If we got a character, print it!
-            char str[2] = {c, '\0'};
-            term_print(str, COLOR_WHITE);
-        }
-
-        // This Halt is tricky:
-        // If we HLT, we stop until an interrupt fires.
-        // The IRQ will fire, write to buffer, and return.
-        // Then we wake up, read the buffer, and print.
         asm volatile("hlt");
-    }
 }
