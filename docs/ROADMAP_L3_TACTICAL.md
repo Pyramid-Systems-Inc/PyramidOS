@@ -11,10 +11,10 @@
 
 *Current Status: Basic red text. No register dumps. Hard to debug.*
 
-- [ ] **Refactor:** Move `Registers` struct to a shared header.
-- [ ] **Create:** `kernel/debug.c` and `kernel/debug.h`.
-- [ ] **Implement:** `panic_on_err(char* msg, Registers* r)` to dump CPU state (EIP, EAX, CS, EFLAGS).
-- [ ] **Integrate:** Update IDT `isr_handler` to use the new Panic system on crashes.
+- [x] **Refactor:** Move `Registers` struct to a shared header.
+- [x] **Create:** `kernel/debug.c` and `kernel/debug.h`.
+- [x] **Implement:** `panic_on_err(char* msg, Registers* r)` to dump CPU state (EIP, EAX, CS, EFLAGS).
+- [x] **Integrate:** Update IDT `isr_handler` to use the new Panic system on crashes.
 
 ## 2. 🧠 PMM Optimization
 

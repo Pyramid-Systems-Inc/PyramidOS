@@ -32,7 +32,7 @@
 | **Interrupts (IDT)** | ✅ | Exception handling (Page Faults, Div-by-zero) & Hardware IRQs. |
 | **Virtual Memory (VMM)** | ✅ | Paging Enabled (CR3/CR0), Identity Mapping, Kernel Higher-Half (Partial). |
 | **Hardware Interrupts** | ✅ | 8259 PIC Remapping, IRQ Masking/Unmasking. |
-| **Kernel Heap** | 🚧 | **[NEXT PRIORITY]** Dynamic memory (`kmalloc`/`kfree`) for kernel objects. |
+| **Kernel Heap** | ✅ | Dynamic memory (`kmalloc`/`kfree`) with coalescing and safety checks. |
 | **Multitasking** | 📅 | Custom Process Control Blocks (PCB), Round-Robin Scheduler. |
 
 ---
@@ -47,7 +47,7 @@
 | **Text Shell (KShell)** | ✅ | Interactive CLI, Command parsing, History (Basic). |
 | **RTC/CMOS** | ✅ | Real-Time Clock driver for system Date/Time. |
 | **System Timer** | ✅ | PIT Driver (100Hz) for uptime and sleep. |
-| **Storage Drivers** | 📅 | **[PLANNED]** ATA/PIO driver for reading hard disks. |
+| **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only) for hard disks. |
 | **Filesystem (VFS)** | 📅 | Virtual File System abstraction layer. |
 
 ---

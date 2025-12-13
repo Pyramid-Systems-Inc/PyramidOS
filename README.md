@@ -77,19 +77,24 @@ Once booted, the **KShell** accepts the following commands:
 ├── boot/
 │   └── src/legacy/      # 16-bit Assembly Bootloader (MBR + Loader)
 └── kernel/
-    ├── entry.asm        # 32-bit Assembly Entry Point
-    ├── main.c           # Kernel Main Loop
-    ├── idt.c/h          # Interrupt Descriptor Table & ISRs
-    ├── idt_asm.asm      # Assembly Interrupt Stubs
-    ├── pmm.c/h          # Physical Memory Manager
-    ├── vmm.c/h          # Virtual Memory Manager
-    ├── shell.c/h        # Command Line Interface
-    ├── keyboard.c/h     # PS/2 Keyboard Driver & Buffer
-    ├── timer.c/h        # Programmable Interval Timer (PIT)
-    ├── rtc.c/h          # Real-Time Clock (CMOS) driver
-    ├── pic.c/h          # Programmable Interrupt Controller
-    ├── string.c/h       # libc-style string utilities
-    └── io.h             # Port I/O wrappers (inb/outb)
+    ├── arch/
+    │   └── i386/        # Architecture-specific code (x86)
+    │       ├── boot.asm     # Multiboot Header & Entry
+    │       ├── idt.c/h      # Interrupt Descriptor Table
+    │       └── cpu.h        # CPU Register Structures
+    ├── core/            # Kernel Core Logic
+    │   ├── main.c       # Entry Point
+    │   ├── pmm.c/h      # Physical Memory Manager
+    │   ├── vmm.c/h      # Virtual Memory Manager
+    │   ├── heap.c/h     # Kernel Heap Allocator
+    │   ├── debug.c/h    # Panic System & Logging
+    │   └── shell.c/h    # KShell Logic
+    ├── drivers/         # Hardware Drivers
+    │   ├── ata.c/h      # Disk I/O
+    │   ├── keyboard.c/h # PS/2 Keyboard
+    │   └── timer.c/h    # PIT Driver
+    └── lib/             # Generic Libraries
+        └── string.c/h   # Memory/String ops
 ```
 
 ---
