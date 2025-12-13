@@ -106,7 +106,9 @@ void test_ata(void) {
             term_print("\n", 0x0C);
         }
     } else {
-        term_print("FAIL (Read Error)\n", 0x0C);
+        term_print("FAIL (Error Code: ", 0x0C);
+        term_print_hex(ret, 0x0C); // Print the error number
+        term_print(")\n", 0x0C);
     }
 
     kfree(buffer);
