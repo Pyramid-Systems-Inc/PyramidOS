@@ -32,9 +32,10 @@
 
 ---
 
-## 4. 🧠 Kernel Heap (Dynamic Memory) - *Deferred*
-
-*Moved to next sprint after hardening is complete.*
+## 4. 🐞 Refactoring & Diagnostics
+- [ ] **Consolidate Tests:** Move `test_heap` and `test_ata` from `main.c` into a new module `kernel/selftest.c`.
+- [ ] **Implement `run_diagnostics()`:** A function called at the end of `k_main` that runs all tests and prints a summary report.
+- [ ] **Shell Command:** Add `diagnose` to KShell to re-run hardware checks on demand.
 
 ---
 

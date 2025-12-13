@@ -146,4 +146,22 @@ This document details the internal design of the kernel subsystems. It bridges t
     };
     ```
 
+## 7. 🩺 System Integrity & Diagnostics (SID)
+
+### 7.1 Power-On Self-Test (POST)
+*   **Concept:** A dedicated boot-time routine that validates hardware and kernel subsystems before the Shell launches.
+*   **Architecture:**
+    *   **Modular Tests:** Each driver (PMM, VMM, ATA) exports a `_test()` function.
+    *   **The Check-Engine:** A master sequencer that runs tests and halts the boot if a critical subsystem (like Memory) fails.
+*   **Visual Feedback:** A dedicated status screen listing components:
+    ```text
+    [ OK ] Physical Memory Manager
+    [ OK ] Virtual Memory Manager
+    [FAIL] ATA Disk Controller (Error: Timeout)
+    ```
+
+### 7.2 Kernel Log Buffer (KLog)
+*   **Goal:** Decouple debug messages from the screen.
+*   **Mechanism:** `kprintf` writes to a circular memory buffer. A background task or shell command (`dmesg`) prints them to the screen later.
+
 * **Persistence:** Serialized to `SYSTEM.PDB` on shutdown, loaded on boot.
