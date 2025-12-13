@@ -5,6 +5,8 @@
 #include "io.h"
 #include "timer.h"
 #include "rtc.h"
+#include "ata.h"
+#include "heap.h"
 
 // Helper to access term_print from main.c
 extern void term_print(const char *str, uint8_t color);
@@ -39,6 +41,7 @@ void execute_command(void)
         term_print("  sleep   - Sleep for 1 second\n", 0x07);
         term_print("  reboot  - Restart the system\n", 0x07);
         term_print("  crash   - Force a kernel crash (for testing)\n", 0x07);
+        term_print("  diskread - Read a disk sector (e.g., diskread 0)\n", 0x07);
     }
     else if (strcmp(cmd_buffer, "clear") == 0)
     {
@@ -106,6 +109,38 @@ void execute_command(void)
         term_print("Forcing a crash...\n", 0x0C);
         int *p = (int *)0xC0000000; // Accessing unmapped memory (High address)
         *p = 0;                     // Should trigger Page Fault
+    }
+    else if (strncmp(cmd_buffer, "diskread ", 9) == 0) {
+        // Parse LBA from string (skip "diskread ")
+        char* arg = cmd_buffer + 9;
+        int lba = atoi(arg);
+
+        term_print("Reading Sector ", 0x07);
+        term_print_hex(lba, 0x0E);
+        term_print("...\n", 0x07);
+
+        // Allocate buffer
+        uint8_t* buf = (uint8_t*)kmalloc(512);
+        if (!buf) {
+            term_print("Error: Out of Memory\n", 0x0C);
+            return;
+        }
+
+        // Read Disk
+        int ret = ata_read_sector(0, buf); // Drive 0 (Master)
+        if (ret != 0) {
+            term_print("Disk Error!\n", 0x0C);
+        } else {
+            // Hex Dump (First 64 bytes)
+            term_print("Data (First 64 bytes):\n", 0x0B);
+            for (int i = 0; i < 64; i++) {
+                term_print_hex(buf[i], 0x07);
+                term_print(" ", 0x07);
+                if ((i + 1) % 16 == 0) term_print("\n", 0x07);
+            }
+        }
+        
+        kfree(buf);
     }
     else if (strlen(cmd_buffer) > 0)
     {

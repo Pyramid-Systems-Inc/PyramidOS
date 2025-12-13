@@ -78,3 +78,24 @@ char *strcat(char *dest, const char *src)
     *dest = 0;
     return saved;
 }
+
+// Convert string to integer (e.g., "123" -> 123)
+int atoi(const char* str) {
+    int res = 0;
+    int sign = 1;
+    int i = 0;
+
+    if (str[0] == '-') {
+        sign = -1;
+        i++;
+    }
+
+    for (; str[i] != '\0'; ++i) {
+        if (str[i] >= '0' && str[i] <= '9') {
+            res = res * 10 + str[i] - '0';
+        } else {
+            break; // Stop at non-digit
+        }
+    }
+    return sign * res;
+}
