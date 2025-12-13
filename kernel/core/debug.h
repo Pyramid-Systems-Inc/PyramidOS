@@ -1,7 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#include "idt.h" // For Registers struct
+#include "cpu.h" // For Registers struct
 
 // Standard Panic (Just a message)
 void panic(const char *message);

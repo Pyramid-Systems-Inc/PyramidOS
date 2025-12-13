@@ -28,7 +28,7 @@ void panic(const char *message)
 
 void panic_with_regs(const char *message, Registers *regs)
 {
-    term_print("\n\n*** KERNEL PANIC (Exception) ***\n", 0x0C);
+    term_print("\n\n*** KERNEL PANIC (Exception) ***\n", 0x0C); // Red
 
     term_print("Reason: ", 0x0F);
     term_print(message, 0x0F);
@@ -45,18 +45,24 @@ void panic_with_regs(const char *message, Registers *regs)
     term_print_hex(regs->eip, 0x0E); // Instruction Pointer (Where it crashed)
     term_print("  CS:  0x", 0x0E);
     term_print_hex(regs->cs, 0x0E);
+    term_print("  EFLAGS: 0x", 0x0E);
+    term_print_hex(regs->eflags, 0x0E);
     term_print("\n", 0x0F);
 
     term_print("EAX: 0x", 0x07);
     term_print_hex(regs->eax, 0x07);
     term_print("  EBX: 0x", 0x07);
     term_print_hex(regs->ebx, 0x07);
+    term_print("  ECX: 0x", 0x07);
+    term_print_hex(regs->ecx, 0x07);
     term_print("\n", 0x0F);
 
-    term_print("ECX: 0x", 0x07);
-    term_print_hex(regs->ecx, 0x07);
-    term_print("  EDX: 0x", 0x07);
+    term_print("EDX: 0x", 0x07);
     term_print_hex(regs->edx, 0x07);
+    term_print("  ESI: 0x", 0x07);
+    term_print_hex(regs->esi, 0x07);
+    term_print("  EDI: 0x", 0x07);
+    term_print_hex(regs->edi, 0x07);
     term_print("\n", 0x0F);
 
     term_print("ESP: 0x", 0x07);
