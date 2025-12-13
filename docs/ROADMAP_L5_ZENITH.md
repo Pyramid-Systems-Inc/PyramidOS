@@ -71,8 +71,18 @@ This document outlines the creative, modern features that will differentiate Pyr
 * **Universal Index:**
   * Press one key to search *everything* (File contents, Settings, PyDB keys, Help docs) instantly. The index is updated in real-time via kernel hooks, not a slow background crawler.
 
----
+## 7. 💿 The "Pyramid Setup" Experience
+*Inspired by the simplicity of Windows XP, perfected for the modern era.*
 
+*   **The "Blue Crystal" Installer:**
+    *   A TUI (Text User Interface) running in VGA mode, but using high-contrast colors and smooth progress bars.
+    *   **Zero-Config partitioning:** "Install to Disk 0" automatically handles MBR/GPT and formatting.
+*   **The "First Light" OOBE (Out of Box Experience):**
+    *   After the first reboot, the user is greeted by the vector GUI.
+    *   Simple wizard: Create User -> Pick Timezone -> Done.
+    *   **No Bloat:** No privacy toggles (because we don't spy), no ads, no account linking.
+
+---
 ## Summary: The PyramidOS Experience
 
 1. **Boot:** Under 1 second.
