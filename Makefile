@@ -1,5 +1,5 @@
 # ==============================================================================
-# PyramidOS Master Makefile (Storage Update)
+# PyramidOS Master Makefile (Restructured)
 # ==============================================================================
 
 # --- Toolchain Configuration ---
@@ -23,6 +23,19 @@ BUILD_DIR = build
 BOOT_DIR = boot/src/legacy
 KERNEL_DIR = kernel
 
+# Subdirectories for Source
+ARCH_DIR    = $(KERNEL_DIR)/arch/i386
+CORE_DIR    = $(KERNEL_DIR)/core
+DRIVERS_DIR = $(KERNEL_DIR)/drivers
+LIB_DIR     = $(KERNEL_DIR)/lib
+
+# Define include paths for all modules to find headers
+INCLUDES = -I$(KERNEL_DIR) \
+           -I$(ARCH_DIR) \
+           -I$(CORE_DIR) \
+           -I$(DRIVERS_DIR) \
+           -I$(LIB_DIR)
+
 # --- Targets ---
 KERNEL_BIN = $(BUILD_DIR)/kernel.bin
 KERNEL_HDR = $(BUILD_DIR)/kernel.hdr
@@ -32,9 +45,8 @@ STAGE2_BIN = $(BUILD_DIR)/stage2.bin
 DISK_IMG   = $(BUILD_DIR)/pyramidos.img
 
 # --- Flags ---
-# -I$(KERNEL_DIR) allows includes like #include "idt.h" to work
-CFLAGS = $(CFLAGS_EXTRA) -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-stack-protector -I$(KERNEL_DIR)
-LDFLAGS = $(LDFLAGS_EXTRA) -T $(KERNEL_DIR)/linker.ld
+CFLAGS = $(CFLAGS_EXTRA) -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-stack-protector $(INCLUDES)
+LDFLAGS = $(LDFLAGS_EXTRA) -T $(ARCH_DIR)/linker.ld
 
 # ==============================================================================
 # Build Rules
@@ -48,12 +60,17 @@ all: $(DISK_IMG)
 $(BUILD_DIR):
 	@mkdir -p $@
 
+# --- Source Discovery (VPATH) ---
+# Tell Make to look for .c and .asm files in these directories
+vpath %.c $(CORE_DIR) $(DRIVERS_DIR) $(LIB_DIR) $(ARCH_DIR)
+vpath %.asm $(ARCH_DIR)
+
 # --- Compile C Sources ---
-$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # --- Compile ASM Sources ---
-$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.asm | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.asm | $(BUILD_DIR)
 	$(ASM) -f elf32 $< -o $@
 
 # --- Special ASM rules for Bootloader ---
@@ -89,11 +106,12 @@ $(KERNEL_BIN): $(OBJECTS)
 $(KERNEL_HDR): $(KERNEL_BIN)
 	@SIZE=$$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN)); \
 	echo "Kernel Size: $$SIZE bytes"; \
-	$(ASM) -f bin $(KERNEL_DIR)/header.asm -o $@ -D KERNEL_SIZE=$$SIZE
+	$(ASM) -f bin $(ARCH_DIR)/header.asm -o $@ -D KERNEL_SIZE=$$SIZE
 
 # 6. Create Final Kernel Image (Header + Binary)
 $(KERNEL_IMG): $(KERNEL_HDR) $(KERNEL_BIN)
 	cat $^ > $@
+
 # --- Disk Image Construction ---
 
 $(DISK_IMG): $(STAGE1_BIN) $(STAGE2_BIN) $(KERNEL_IMG)
