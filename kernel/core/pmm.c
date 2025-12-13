@@ -32,7 +32,7 @@ static void pmm_unset(uint32_t frame)
 }
 
 // Helper: Test a bit (Check if used)
-static uint8_t pmm_test(uint32_t frame)
+static uint8_t __attribute__((unused)) pmm_test(uint32_t frame)
 {
     uint32_t idx = frame / 8;
     uint32_t off = frame % 8;

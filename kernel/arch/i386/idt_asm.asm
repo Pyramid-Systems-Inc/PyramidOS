@@ -134,3 +134,8 @@ isr_common_stub:
     add esp, 8          ; Clean up error code and ISR number
     sti                 ; Re-enable interrupts
     iret                ; Interrupt Return
+
+; ------------------------------------------------------------------------------
+; Mark stack as non-executable (silences linker warning)
+; ------------------------------------------------------------------------------
+section .note.GNU-stack noalloc noexec nowrite progbits
