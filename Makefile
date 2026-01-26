@@ -141,7 +141,8 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/mbr.o \
           $(BUILD_DIR)/vfs.o \
           $(BUILD_DIR)/nullfs.o \
-          $(BUILD_DIR)/devfs.o
+          $(BUILD_DIR)/devfs.o \
+          $(BUILD_DIR)/pyfs.o
 
 $(KERNEL_BIN): $(OBJECTS)
 	$(LD) $(LDFLAGS) -o $(KERNEL_ELF) $^

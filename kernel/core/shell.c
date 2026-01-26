@@ -43,6 +43,7 @@ void execute_command(void)
         term_print("  diskread - Read a disk sector (e.g., diskread 0)\n", 0x07);
         term_print("  blkinfo  - List registered block devices\n", 0x07);
         term_print("  mounts   - List VFS mounts\n", 0x07);
+        term_print("  pyfs_sb  - Read /py/superblock (PyFS probe via VFS)\n", 0x07);
         term_print("  diagnose - Run kernel diagnostics (PMM/Heap/ATA)\n", 0x07);
     }
     else if (strcmp(cmd_buffer, "clear") == 0)
@@ -101,6 +102,44 @@ void execute_command(void)
             term_print(" -> ", 0x07);
             term_print(fs, 0x0E);
             term_print("\n", 0x07);
+        }
+    }
+    else if (strcmp(cmd_buffer, "pyfs_sb") == 0)
+    {
+        uint32_t fd = 0u;
+        int rc = vfs_open("/py/superblock", VFS_OPEN_READ, &fd);
+        if (rc != VFS_OK)
+        {
+            term_print("PyFS: open failed (rc=", 0x0C);
+            term_print_hex((uint32_t)rc, 0x0C);
+            term_print(")\n", 0x0C);
+        }
+        else
+        {
+            uint8_t buf[64];
+            uint32_t read = 0u;
+
+            rc = vfs_read(fd, buf, (uint32_t)sizeof(buf), &read);
+            if (rc != VFS_OK)
+            {
+                term_print("PyFS: read failed (rc=", 0x0C);
+                term_print_hex((uint32_t)rc, 0x0C);
+                term_print(")\n", 0x0C);
+            }
+            else
+            {
+                term_print("PyFS superblock (first 64 bytes):\n", 0x0B);
+                for (uint32_t i = 0; i < read; i++)
+                {
+                    term_print_hex((uint32_t)buf[i], 0x07);
+                    term_print(" ", 0x07);
+                    if (((i + 1u) % 16u) == 0u)
+                        term_print("\n", 0x07);
+                }
+                term_print("\n", 0x07);
+            }
+
+            (void)vfs_close(fd);
         }
     }
     else if (strcmp(cmd_buffer, "uptime") == 0)

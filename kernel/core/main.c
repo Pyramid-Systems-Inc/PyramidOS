@@ -27,6 +27,7 @@
 #include "fs/vfs.h"
 #include "fs/nullfs.h"
 #include "fs/devfs.h"
+#include "fs/pyfs.h"
 
 /* Console colors (VGA text-mode attributes) */
 static const uint8_t COLOR_GREEN  = TERM_COLOR_LIGHT_GREEN;
@@ -255,6 +256,36 @@ void k_main(void) {
         int vfs_rc = vfs_mount("/dev", "devfs", &DEVFS_OPS, 0);
         if (vfs_rc != VFS_OK)
             panic("VFS: mount('/dev') failed");
+    }
+
+    term_print("Probing PyFS on disk0p1...\n", COLOR_WHITE);
+    {
+        BlockDevice *p1 = block_get_by_name("disk0p1");
+        if (p1)
+        {
+            PyfsCtx *pyfs = 0;
+            int pyfs_rc = pyfs_create(p1, &pyfs);
+            if (pyfs_rc == 0)
+            {
+                int vfs_rc = vfs_mount("/py", "pyfs", &PYFS_OPS, pyfs);
+                if (vfs_rc != VFS_OK)
+                {
+                    term_print("WARN: PyFS mount failed (rc=", COLOR_WHITE);
+                    term_print_hex((uint32_t)vfs_rc, COLOR_YELLOW);
+                    term_print(")\n", COLOR_WHITE);
+                }
+            }
+            else
+            {
+                term_print("WARN: PyFS probe failed (rc=", COLOR_WHITE);
+                term_print_hex((uint32_t)pyfs_rc, COLOR_YELLOW);
+                term_print(")\n", COLOR_WHITE);
+            }
+        }
+        else
+        {
+            term_print("WARN: disk0p1 not found; skipping PyFS mount\n", COLOR_WHITE);
+        }
     }
 
     // Run Diagnostics (PMM + Heap + ATA)
