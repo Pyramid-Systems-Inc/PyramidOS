@@ -132,10 +132,18 @@ void execute_command(void)
             return;
         }
 
-        // Read Disk
-        int ret = ata_read_sector(0, buf); // Drive 0 (Master)
+        if (lba < 0) {
+            term_print("Error: LBA must be >= 0\n", 0x0C);
+            kfree(buf);
+            return;
+        }
+
+        // Read Disk (Drive 0 = Master)
+        int ret = ata_read_sector(0, (uint32_t)lba, buf);
         if (ret != 0) {
-            term_print("Disk Error!\n", 0x0C);
+            term_print("Disk Error (code: ", 0x0C);
+            term_print_hex((uint32_t)ret, 0x0C);
+            term_print(")\n", 0x0C);
         } else {
             // Hex Dump (First 64 bytes)
             term_print("Data (First 64 bytes):\n", 0x0B);

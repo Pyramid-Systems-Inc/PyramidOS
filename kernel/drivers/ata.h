@@ -24,7 +24,20 @@
 #define ATA_CMD_WRITE_PIO   0x30
 #define ATA_CMD_IDENTIFY    0xEC
 
+// LBA28 constants (no magic numbers)
+#define ATA_LBA28_MAX           0x0FFFFFFFu
+#define ATA_DRIVE_LBA_MASTER    0xE0u
+#define ATA_DRIVE_LBA_SLAVE     0xF0u
+
+// Return codes (0 = success)
+#define ATA_OK                  0
+#define ATA_ERR_TIMEOUT_BSY     1
+#define ATA_ERR_TIMEOUT_DRQ     2
+#define ATA_ERR_DEVICE          3
+#define ATA_ERR_INVALID_PARAM   4
+#define ATA_ERR_LBA_RANGE       5
+
 void ata_init(void);
-int ata_read_sector(int drive, uint8_t* buffer); // Simple LBA28 read
+int ata_read_sector(int drive, uint32_t lba, uint8_t* buffer); // LBA28 PIO read (1 sector)
 
 #endif

@@ -158,7 +158,7 @@ int selftest_ata(void)
     if (!buffer)
         return 1;
 
-    int ret = ata_read_sector(0, buffer);
+    int ret = ata_read_sector(0, 0u, buffer);
     if (ret != 0)
     {
         kfree(buffer);

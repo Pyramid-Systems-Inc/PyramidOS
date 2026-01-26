@@ -153,7 +153,7 @@ void test_ata(void) {
 
     // 3. Read Sector 0 (LBA 0)
     term_print("Reading Sector 0... ", 0x07);
-    int ret = ata_read_sector(0, buffer); 
+    int ret = ata_read_sector(0, 0u, buffer);
 
     if (ret == 0) {
         term_print("OK\n", 0x0A);
