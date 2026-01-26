@@ -149,6 +149,10 @@ stage2_main:
 
     ; 10. Enter Protected Mode
     call ui_status_pmode_ok
+
+    ; Restore cursor before leaving BIOS services behind.
+    call ui_show_cursor
+
     cli                     ; Disable interrupts for good
 
     lgdt [gdt_descriptor]   ; Load GDT
@@ -537,10 +541,17 @@ UI_ROW_STATUS_KERN equ 9
 UI_ROW_STATUS_PM   equ 10
 
 UI_ROW_PROGRESS    equ 22
+UI_ROW_PROGRESS_INFO equ 23
 UI_ROW_HINT        equ 24
 
 UI_PROG_COL_BAR    equ 16
 UI_PROG_WIDTH      equ 50
+
+; Frame around the status panel
+UI_FRAME_TOP       equ 5
+UI_FRAME_BOTTOM    equ 12
+UI_FRAME_LEFT      equ 1
+UI_FRAME_RIGHT     equ 78
 
 ; Function: ui_maybe_print_string
 ; Input: SI = pointer to null-terminated string
@@ -556,9 +567,40 @@ ui_maybe_print_string:
 ui_init:
     push ax
     mov byte [ui_verbose], 0
+
     ; Force VGA 80x25 text mode.
     mov ax, 0x0003
     int 0x10
+
+    ; Hide the blinking cursor during the splash UI.
+    call ui_hide_cursor
+
+    pop ax
+    ret
+
+; Function: ui_hide_cursor
+; Uses BIOS INT 10h to hide the text cursor by setting start scanline to 0x20.
+ui_hide_cursor:
+    push ax
+    push cx
+    mov ah, 0x01
+    mov ch, 0x20
+    mov cl, 0x00
+    int 0x10
+    pop cx
+    pop ax
+    ret
+
+; Function: ui_show_cursor
+; Restore a normal cursor shape (safe before leaving real mode).
+ui_show_cursor:
+    push ax
+    push cx
+    mov ah, 0x01
+    mov ch, 0x06
+    mov cl, 0x07
+    int 0x10
+    pop cx
     pop ax
     ret
 
@@ -678,6 +720,22 @@ ui_draw_boot_screen:
     mov bl, UI_ATTR_DIM
     call vga_write_string_at
 
+    ; ASCII logo (simple + fast)
+    mov si, msg_logo_1
+    mov dh, 3
+    mov dl, 2
+    mov bl, UI_ATTR_TITLE
+    call vga_write_string_at
+
+    mov si, msg_logo_2
+    mov dh, 4
+    mov dl, 2
+    mov bl, UI_ATTR_DIM
+    call vga_write_string_at
+
+    ; Status frame (box around the status panel)
+    call ui_draw_frame
+
     ; Hint
     mov si, msg_hint_f8
     mov dh, UI_ROW_HINT
@@ -687,6 +745,71 @@ ui_draw_boot_screen:
 
     pop si
     pop dx
+    pop bx
+    pop ax
+    ret
+
+; Function: ui_draw_frame
+; Draw a simple box around the status panel area.
+ui_draw_frame:
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov bl, UI_ATTR_DIM
+
+    ; Top border
+    mov dh, UI_FRAME_TOP
+    mov dl, UI_FRAME_LEFT
+    mov al, 0xC9            ; '┌'
+    call vga_putc_at
+
+    mov cx, UI_FRAME_RIGHT - UI_FRAME_LEFT - 1
+    inc dl
+.top_h:
+    mov al, 0xCD            ; '─'
+    call vga_putc_at
+    inc dl
+    loop .top_h
+
+    mov al, 0xBB            ; '┐'
+    call vga_putc_at
+
+    ; Side borders
+    mov cx, UI_FRAME_BOTTOM - UI_FRAME_TOP - 1
+    mov dh, UI_FRAME_TOP
+.sides:
+    inc dh
+    mov dl, UI_FRAME_LEFT
+    mov al, 0xBA            ; '│'
+    call vga_putc_at
+
+    mov dl, UI_FRAME_RIGHT
+    mov al, 0xBA            ; '│'
+    call vga_putc_at
+
+    loop .sides
+
+    ; Bottom border
+    mov dh, UI_FRAME_BOTTOM
+    mov dl, UI_FRAME_LEFT
+    mov al, 0xC8            ; '└'
+    call vga_putc_at
+
+    mov cx, UI_FRAME_RIGHT - UI_FRAME_LEFT - 1
+    inc dl
+.bot_h:
+    mov al, 0xCD            ; '─'
+    call vga_putc_at
+    inc dl
+    loop .bot_h
+
+    mov al, 0xBC            ; '┘'
+    call vga_putc_at
+
+    pop dx
+    pop cx
     pop bx
     pop ax
     ret
@@ -830,6 +953,9 @@ ui_progress_init:
     mov bl, UI_ATTR_LABEL
     call vga_write_string_at
 
+    ; Reset cached progress (for delta updates).
+    mov word [ui_prog_prev_filled], 0
+
     ; Draw empty bar
     mov cx, UI_PROG_WIDTH
     mov dh, UI_ROW_PROGRESS
@@ -847,6 +973,33 @@ ui_progress_init:
     mov dl, UI_PROG_COL_BAR + UI_PROG_WIDTH + 2
     mov bl, UI_ATTR_LABEL
     call vga_print_percent_at
+
+    ; Print sector counters on a dedicated line to avoid 80-col overflow
+    mov si, msg_lbl_sectors
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 2
+    mov bl, UI_ATTR_LABEL
+    call vga_write_string_at
+
+    ; done (0)
+    mov ax, 0
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 16
+    mov bl, UI_ATTR_LABEL
+    call vga_print_u16_5_at
+
+    mov al, '/'
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 21
+    mov bl, UI_ATTR_LABEL
+    call vga_putc_at
+
+    ; total
+    mov ax, [kernel_sectors_total]
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 22
+    mov bl, UI_ATTR_LABEL
+    call vga_print_u16_5_at
 
     pop si
     pop dx
@@ -888,45 +1041,146 @@ ui_update_progress:
     div cx                  ; AX = percent (0..100)
     mov di, ax              ; percent
 
-    ; Draw filled part
-    mov cx, si
-    mov dh, UI_ROW_PROGRESS
-    mov dl, UI_PROG_COL_BAR
-    mov bl, UI_ATTR_OK
-.fill_loop:
-    cmp cx, 0
-    je .draw_empty_tail
-    mov al, 0xDB            ; solid block
-    call vga_putc_at
-    inc dl
-    dec cx
-    jmp .fill_loop
-
-.draw_empty_tail:
-    mov ax, UI_PROG_WIDTH
-    sub ax, si
-    mov cx, ax
-    mov bl, UI_ATTR_DIM
-.empty_loop:
-    cmp cx, 0
+    ; Delta update to reduce flicker:
+    mov ax, [ui_prog_prev_filled]   ; prev filled
+    cmp si, ax
     je .percent
+
+    ja .fill_delta
+
+    ; new < prev: clear from new .. prev-1 (should be rare)
+    mov cx, ax
+    sub cx, si                       ; count = prev - new
+    mov ax, si
+    add ax, UI_PROG_COL_BAR
+    mov dl, al
+    mov dh, UI_ROW_PROGRESS
+    mov bl, UI_ATTR_DIM
+.clear_loop:
     mov al, 0xB0
     call vga_putc_at
     inc dl
-    dec cx
-    jmp .empty_loop
+    loop .clear_loop
+    jmp .set_prev
+
+.fill_delta:
+    ; new > prev: fill from prev .. new-1
+    mov cx, si
+    sub cx, ax                       ; count = new - prev
+    add ax, UI_PROG_COL_BAR
+    mov dl, al
+    mov dh, UI_ROW_PROGRESS
+    mov bl, UI_ATTR_OK
+.fill_loop:
+    mov al, 0xDB
+    call vga_putc_at
+    inc dl
+    loop .fill_loop
+
+.set_prev:
+    mov [ui_prog_prev_filled], si
 
 .percent:
+    ; percent display
     mov ax, di
     mov dh, UI_ROW_PROGRESS
     mov dl, UI_PROG_COL_BAR + UI_PROG_WIDTH + 2
     mov bl, UI_ATTR_LABEL
     call vga_print_percent_at
 
+    ; Update sector counters line: done/total
+    mov ax, bx
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 16
+    mov bl, UI_ATTR_LABEL
+    call vga_print_u16_5_at
+
+    mov al, '/'
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 21
+    mov bl, UI_ATTR_LABEL
+    call vga_putc_at
+
+    mov ax, [kernel_sectors_total]
+    mov dh, UI_ROW_PROGRESS_INFO
+    mov dl, 22
+    mov bl, UI_ATTR_LABEL
+    call vga_print_u16_5_at
+
 .done:
     pop es
     pop ds
     popad
+    ret
+
+; Print AX as a 5-char right-aligned decimal number at DH:DL, using attribute BL.
+; Input: AX=value, DH=row, DL=leftmost column. Uses spaces for leading zeros.
+vga_print_u16_5_at:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+
+    mov si, ax              ; value
+    mov bh, dh              ; row
+
+    ; DI = rightmost column (left + 4)
+    xor di, di
+    mov di, dx
+    and di, 0x00FF
+    add di, 4
+
+    mov bp, 0               ; emitted-nonzero flag
+    mov cx, 5
+    mov bx, 10
+
+.u16_loop:
+    mov ax, si
+    xor dx, dx
+    div bx                  ; AX=quotient, DX=remainder
+    mov si, ax
+
+    mov al, dl              ; digit (0..9) from remainder
+
+    ; Leading spaces unless we've emitted a nonzero digit, or we're at last digit.
+    cmp bp, 0
+    jne .emit_digit
+    cmp si, 0
+    jne .mark_nonzero
+    cmp cx, 1
+    je .emit_digit
+    cmp al, 0
+    jne .mark_nonzero
+    mov al, ' '
+    jmp .emit
+
+.mark_nonzero:
+    mov bp, 1
+.emit_digit:
+    add al, '0'
+
+.emit:
+    ; Set DH=row, DL=column from DI (16-bit safe)
+    push ax
+    mov ax, di
+    mov dl, al
+    pop ax
+    mov dh, bh
+
+    call vga_putc_at
+    dec di
+    loop .u16_loop
+
+    pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 
 ; Print AX as "NNN%" at DH:DL with attribute BL (AX expected 0..100)
@@ -1070,6 +1324,7 @@ kernel_sectors:  dw 0
 kernel_sectors_total: dw 0
 
 ui_verbose:      db 0
+ui_prog_prev_filled: dw 0
 
 e820_entry_count: dw 0
 tmp_lba:         dd 0
@@ -1114,6 +1369,10 @@ msg_stat_fail:    db '[FAIL ]', 0
 msg_menu_title:   db 'Boot Options', 0
 msg_menu_1:       db '1) Normal (Quiet UI)', 0
 msg_menu_2:       db '2) Verbose (debug text output)', 0
+
+msg_logo_1:       db '   /\\    PyramidOS', 0
+msg_logo_2:       db '  /__\\   Sovereign Boot Sequence', 0
+msg_lbl_sectors:  db 'Sectors:', 0
 
 ; Disk Address Packet
 align 4
