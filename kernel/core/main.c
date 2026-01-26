@@ -25,6 +25,7 @@
 
 #include "fs/vfs.h"
 #include "fs/nullfs.h"
+#include "fs/devfs.h"
 
 /* Console colors (VGA text-mode attributes) */
 static const uint8_t COLOR_GREEN  = TERM_COLOR_LIGHT_GREEN;
@@ -228,6 +229,12 @@ void k_main(void) {
         int vfs_rc = vfs_mount("/", "nullfs", &NULLFS_OPS, 0);
         if (vfs_rc != VFS_OK)
             panic("VFS: mount('/') failed");
+    }
+
+    {
+        int vfs_rc = vfs_mount("/dev", "devfs", &DEVFS_OPS, 0);
+        if (vfs_rc != VFS_OK)
+            panic("VFS: mount('/dev') failed");
     }
 
     // Run Diagnostics (PMM + Heap + ATA)

@@ -139,7 +139,8 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/block.o \
           $(BUILD_DIR)/ata_block.o \
           $(BUILD_DIR)/vfs.o \
-          $(BUILD_DIR)/nullfs.o
+          $(BUILD_DIR)/nullfs.o \
+          $(BUILD_DIR)/devfs.o
 
 $(KERNEL_BIN): $(OBJECTS)
 	$(LD) $(LDFLAGS) -o $(KERNEL_ELF) $^
