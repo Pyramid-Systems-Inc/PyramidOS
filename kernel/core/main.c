@@ -17,11 +17,11 @@
 #include "ata.h"      // Added for Storage
 #include "string.h"   // Added for strcpy
 #include "terminal.h"
+#include "cpu.h"
 
 /* Console colors (VGA text-mode attributes) */
 static const uint8_t COLOR_GREEN = TERM_COLOR_LIGHT_GREEN;
 static const uint8_t COLOR_WHITE = TERM_COLOR_WHITE;
-static const uint8_t COLOR_RED   = TERM_COLOR_LIGHT_RED;
 
 // --- Test Suites ---
 // NOTE: Tests were migrated to [`kernel/core/selftest.c`](kernel/core/selftest.c:1).
@@ -203,12 +203,13 @@ void k_main(void) {
     pic_disable();
     pic_clear_mask(0); // IRQ0: PIT Timer
     pic_clear_mask(1); // IRQ1: PS/2 Keyboard
-    asm volatile("sti");
+    cpu_sti();
 
     shell_init();
     shell_run();
 
-    while(1) {
-        asm volatile("hlt");
+    while (1)
+    {
+        cpu_idle();
     }
 }

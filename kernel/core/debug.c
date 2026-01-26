@@ -5,11 +5,11 @@
 // Helper: Freeze the computer
 static void hang(void)
 {
-    // Disable interrupts to stop the flicker
-    asm volatile("cli");
+    /* Hard stop: interrupts off, CPU halted forever. */
+    cpu_cli();
     while (1)
     {
-        asm volatile("hlt");
+        cpu_hlt();
     }
 }
 

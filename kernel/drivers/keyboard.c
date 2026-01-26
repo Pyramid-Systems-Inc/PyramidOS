@@ -1,8 +1,7 @@
 #include "keyboard.h"
 #include "io.h"
+#include "cpu.h"
 #include <stdbool.h> // We need bool types
-
-extern void term_print(const char *str, uint8_t color);
 
 // Buffer Configuration
 #define KB_BUFFER_SIZE 256
@@ -74,17 +73,17 @@ char keyboard_get_char(void)
          *  - Re-check the buffer
          *  - If still empty: atomically enable interrupts then HLT
          */
-        asm volatile("cli");
+        cpu_cli();
 
         if (read_ptr != write_ptr)
         {
             char c = kb_buffer[read_ptr];
             read_ptr = (uint16_t)((read_ptr + 1u) % KB_BUFFER_SIZE);
-            asm volatile("sti");
+            cpu_sti();
             return c;
         }
 
-        asm volatile("sti\n\thlt");
+        cpu_idle();
     }
 }
 

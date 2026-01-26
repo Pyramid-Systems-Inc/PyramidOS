@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "io.h"
+#include "cpu.h"
 
 // 1.193182 MHz / 100 Hz = 11931 divisor
 #define TIMER_FREQ 100
@@ -36,6 +37,6 @@ void timer_sleep(uint32_t ms)
     uint64_t target = ticks + (ms / 10);
     while (ticks < target)
     {
-        asm volatile("hlt");
+        cpu_idle();
     }
 }
