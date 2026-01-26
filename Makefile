@@ -37,24 +37,60 @@ INCLUDES = -I$(KERNEL_DIR) \
            -I$(LIB_DIR)
 
 # --- Targets ---
+KERNEL_ELF = $(BUILD_DIR)/kernel.elf
 KERNEL_BIN = $(BUILD_DIR)/kernel.bin
 KERNEL_HDR = $(BUILD_DIR)/kernel.hdr
 KERNEL_IMG = $(BUILD_DIR)/kernel.img
 STAGE1_BIN = $(BUILD_DIR)/stage1.bin
 STAGE2_BIN = $(BUILD_DIR)/stage2.bin
 DISK_IMG   = $(BUILD_DIR)/pyramidos.img
+KERNEL_MAP = $(BUILD_DIR)/kernel.map
+
+# --- Build Profile ---
+# BUILD=release (default) or BUILD=debug
+BUILD ?= release
+# STRICT=1 enables -Werror (opt-in until the codebase is fully warning-clean)
+STRICT ?= 0
 
 # --- Flags ---
-CFLAGS = $(CFLAGS_EXTRA) -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-stack-protector $(INCLUDES)
-LDFLAGS = $(LDFLAGS_EXTRA) -T $(ARCH_DIR)/linker.ld
+CFLAGS_COMMON = $(CFLAGS_EXTRA) \
+	-ffreestanding \
+	-std=gnu11 \
+	-Wall -Wextra \
+	-fno-pie -fno-pic \
+	-fno-stack-protector \
+	-fno-builtin \
+	$(INCLUDES)
+
+CFLAGS_release = -O2
+CFLAGS_debug   = -O0 -g3 -ggdb -DDEBUG -fno-omit-frame-pointer
+
+CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_$(BUILD))
+
+ifeq ($(STRICT),1)
+	CFLAGS += -Werror
+endif
+
+NASMFLAGS = -f elf32
+ifeq ($(BUILD),debug)
+	NASMFLAGS += -g -F dwarf
+endif
+
+LDFLAGS = $(LDFLAGS_EXTRA) -T $(ARCH_DIR)/linker.ld -Map $(KERNEL_MAP)
 
 # ==============================================================================
 # Build Rules
 # ==============================================================================
 
-.PHONY: all clean run
+.PHONY: all clean run debug release
 
 all: $(DISK_IMG)
+
+debug: BUILD=debug
+debug: $(DISK_IMG)
+
+release: BUILD=release
+release: $(DISK_IMG)
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -71,7 +107,7 @@ $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 
 # --- Compile ASM Sources ---
 $(BUILD_DIR)/%.o: %.asm | $(BUILD_DIR)
-	$(ASM) -f elf32 $< -o $@
+	$(ASM) $(NASMFLAGS) $< -o $@
 
 # --- Special ASM rules for Bootloader ---
 $(STAGE1_BIN): $(BOOT_DIR)/stage1.asm | $(BUILD_DIR)
@@ -100,8 +136,8 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/ata.o
 
 $(KERNEL_BIN): $(OBJECTS)
-	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel.elf $^
-	$(OBJCOPY) -O binary $(BUILD_DIR)/kernel.elf $@
+	$(LD) $(LDFLAGS) -o $(KERNEL_ELF) $^
+	$(OBJCOPY) -O binary $(KERNEL_ELF) $@
 
 # 5. Generate Header (Calculates size dynamically)
 $(KERNEL_HDR): $(KERNEL_BIN)
