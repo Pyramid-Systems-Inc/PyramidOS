@@ -1,6 +1,6 @@
 # PyramidOS
 
-> **Kernel Version:** v0.8 (Heap Enabled)  
+> **Kernel Version:** v0.8.1 (Hardened)
 > **Architecture:** x86 (32-bit Protected Mode)  
 > **Boot Standard:** Legacy BIOS (Custom Bootloader)
 
@@ -22,7 +22,8 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 | **System Timer (PIT)** | ✅ Stable | 8253 PIT configured at 100Hz for system ticks and sleep. |
 | **Real-Time Clock (RTC)** | ✅ Stable | CMOS register parsing for Wall Clock Time (Y/M/D H:M:S). |
 | **KShell** | ✅ Stable | Interactive command interpreter with history and backspace support. |
-| **VGA Driver** | ✅ Stable | Text Mode (80x25) with hardware cursor support. |
+| **Terminal (VGA Text Mode)** | ✅ Stable | Text Mode (80x25) with hardware cursor support. |
+| **CPU Idle / Power Management** | ✅ Stable | Uses STI+HLT (`cpu_idle()`) to avoid busy-waiting when idle. |
 | **Kernel Heap** | ✅ Stable | Doubly-linked list allocator with `kmalloc`/`kfree` and coalescing. |
 | **VMM** | ✅ Stable | Paging enabled; Heap mapped to `0xD0000000`. |
 | **Storage (ATA/PIO)** | 🚧 In Progress | ATA PIO LBA28 sector reads (Read-Only); validated by `diskread` + diagnostics. |
@@ -39,19 +40,35 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 
 ### Quick Start
 
-1. **Clean and Build:**
+1. **Clean and Build (Release default):**
 
     ```bash
     make clean && make
     ```
 
-    *Generates `build/pyramidos.img`.*
+    *Generates `build/pyramidos.img` and `build/kernel.map`.*
 
-2. **Run:**
+2. **Optional: Debug Build:**
+
+    ```bash
+    make clean && make debug
+    ```
+
+3. **Optional: Strict Warnings (Werror):**
+
+    ```bash
+    make clean && make STRICT=1
+    ```
+
+4. **Run:**
 
     ```bash
     make run
     ```
+
+## 🔒 Repository Notice
+
+This repository is currently private / all-rights-reserved. See `NOTICE`.
 
 ---
 
@@ -76,29 +93,35 @@ Once booted, the **KShell** accepts the following commands:
 
 ```text
 /
-├── Makefile             # Master build orchestration
-├── docs/                # Strategic, Architectural, and Tactical roadmaps
+├── Makefile                  # Master build orchestration (release/debug/strict)
+├── NOTICE                    # Private / all-rights-reserved notice (no license granted)
+├── docs/                     # Strategic, Architectural, and Tactical roadmaps
 ├── boot/
-│   └── src/legacy/      # 16-bit Assembly Bootloader (MBR + Loader)
+│   └── src/legacy/           # 16-bit Assembly Bootloader (MBR + Loader)
 └── kernel/
     ├── arch/
-    │   └── i386/        # Architecture-specific code (x86)
-    │       ├── boot.asm     # Multiboot Header & Entry
-    │       ├── idt.c/h      # Interrupt Descriptor Table
-    │       └── cpu.h        # CPU Register Structures
-    ├── core/            # Kernel Core Logic
-    │   ├── main.c       # Entry Point
-    │   ├── pmm.c/h      # Physical Memory Manager
-    │   ├── vmm.c/h      # Virtual Memory Manager
-    │   ├── heap.c/h     # Kernel Heap Allocator
-    │   ├── debug.c/h    # Panic System & Logging
-    │   └── shell.c/h    # KShell Logic
-    ├── drivers/         # Hardware Drivers
-    │   ├── ata.c/h      # Disk I/O
-    │   ├── keyboard.c/h # PS/2 Keyboard
-    │   └── timer.c/h    # PIT Driver
-    └── lib/             # Generic Libraries
-        └── string.c/h   # Memory/String ops
+    │   └── i386/             # Architecture-specific code (x86)
+    │       ├── entry.asm     # Kernel entry (stack + handoff to C)
+    │       ├── idt.c/h       # Interrupt Descriptor Table
+    │       ├── idt_asm.asm   # ISR/IRQ stubs
+    │       └── cpu.h         # Registers + CPU helpers (cli/sti/hlt/idle)
+    ├── core/                 # Kernel Core Logic
+    │   ├── main.c            # Entry point / init ordering
+    │   ├── pmm.c/h           # Physical Memory Manager
+    │   ├── vmm.c/h           # Virtual Memory Manager
+    │   ├── heap.c/h          # Kernel Heap Allocator
+    │   ├── debug.c/h         # Panic system
+    │   ├── shell.c/h         # KShell logic
+    │   └── selftest.c/h      # Diagnostics
+    ├── drivers/              # Hardware drivers
+    │   ├── pic.c/h           # 8259 PIC (remap + mask control)
+    │   ├── keyboard.c/h      # PS/2 keyboard (buffered input)
+    │   ├── timer.c/h         # PIT driver
+    │   ├── rtc.c/h           # RTC/CMOS wall-clock time
+    │   ├── ata.c/h           # ATA PIO (read-only)
+    │   └── terminal.c/h      # VGA text-mode terminal
+    └── lib/                  # Freestanding libc-like helpers
+        └── string.c/h        # Memory/string ops + atoi
 ```
 
 ---
@@ -112,7 +135,7 @@ Once booted, the **KShell** accepts the following commands:
     * **PIC:** Remaps IRQs to avoid CPU conflicts.
     * **VMM:** Identity maps lower 4MB, enables Paging (CR0).
     * **HAL:** Initializes Timer (100Hz) and Keyboard.
-3. **Runtime:** The kernel yields control to `shell_run()`, which polls the keyboard buffer while the CPU idles via `hlt`.
+3. **Runtime:** The kernel yields control to `shell_run()`, which blocks on buffered keyboard input while the CPU idles via `cpu_idle()` (STI+HLT).
 
 ---
 

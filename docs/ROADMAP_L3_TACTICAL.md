@@ -13,7 +13,7 @@
 
 - [x] **Refactor:** Move `Registers` struct to a shared header.
 - [x] **Create:** `kernel/debug.c` and `kernel/debug.h`.
-- [x] **Implement:** `panic_on_err(char* msg, Registers* r)` to dump CPU state (EIP, EAX, CS, EFLAGS).
+- [x] **Implement:** `panic_with_regs(const char* msg, Registers* r)` to dump CPU state (EIP/EAX/CS/EFLAGS/etc).
 - [x] **Integrate:** Update IDT `isr_handler` to use the new Panic system on crashes.
 
 ## 2. 🧠 PMM Optimization
@@ -27,8 +27,8 @@
 
 *Current Status: Busy waiting 100% CPU.*
 
-- [ ] **Halt Loop:** Replace `while(1)` with `while(1) { asm volatile("hlt"); }`.
-- [ ] **Shell Optimization:** Ensure keyboard polling yields to the CPU.
+- [x] **Idle Loop:** Standardize idle path via `cpu_idle()` (STI+HLT) wrapper (no busy wait).
+- [x] **Shell/Input Yield:** Keyboard blocking read halts CPU until IRQ (race-free, no polling burn).
 
 ---
 
@@ -36,6 +36,7 @@
 - [x] **Consolidate Tests:** Move `test_heap` and `test_ata` from `main.c` into a new module `kernel/core/selftest.c`.
 - [x] **Implement `run_diagnostics()`:** Implement `selftest_run_all()` called at the end of `k_main` that runs all tests and prints a summary report.
 - [x] **Shell Command:** Add `diagnose` to KShell to re-run hardware checks on demand.
+- [x] **Terminal Driver:** Extract VGA console into `kernel/drivers/terminal.c/.h` and remove cross-module `extern term_*` coupling.
 
 ---
 

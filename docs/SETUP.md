@@ -100,13 +100,25 @@ This uses your Linux distribution's standard compiler. It is sufficient for the 
     cd /mnt/d/PyramidOS
     ```
 
-2. **Compile:**
+2. **Compile (Release default):**
 
     ```bash
     make clean && make
     ```
 
     *Success Output:* You should see `Build Complete: build/pyramidos.img`.
+
+    *Extras Generated:* `build/kernel.map` (linker map).
+
+    **Optional: Debug Build**
+    ```bash
+    make clean && make debug
+    ```
+
+    **Optional: Strict Warnings (Werror)**
+    ```bash
+    make clean && make STRICT=1
+    ```
 
 3. **Run Emulation:**
 
