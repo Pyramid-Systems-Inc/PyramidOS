@@ -1,0 +1,27 @@
+# PyramidOS CODEOWNERS
+#
+# This repository is private (see NOTICE). CODEOWNERS is used to route reviews to the
+# correct maintainers. Replace the @handles below with your actual GitHub usernames
+# or team handles when ready.
+
+# Default owners for everything
+* @pyramidos-maintainers
+
+# Documentation owners
+/docs/ @pyramidos-maintainers
+README.md @pyramidos-maintainers
+NOTICE @pyramidos-maintainers
+CONTRIBUTING.md @pyramidos-maintainers
+
+# Kernel owners
+/kernel/ @pyramidos-kernel
+/kernel/arch/ @pyramidos-kernel
+/kernel/core/ @pyramidos-kernel
+/kernel/drivers/ @pyramidos-kernel
+/kernel/lib/ @pyramidos-kernel
+
+# Bootloader owners
+/boot/ @pyramidos-boot
+
+# Build system owners
+/Makefile @pyramidos-maintainers

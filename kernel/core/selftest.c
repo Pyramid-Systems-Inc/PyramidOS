@@ -28,7 +28,11 @@ static void selftest_print_status(const char *name, int rc)
     }
     term_print("] ", COLOR_WHITE);
     term_print(name, COLOR_WHITE);
-    term_print("\n", COLOR_WHITE);
+
+    /* Always print the return code to make failures diagnosable. */
+    term_print(" (rc=", COLOR_WHITE);
+    term_print_hex((uint32_t)rc, COLOR_YELLOW);
+    term_print(")\n", COLOR_WHITE);
 }
 
 int selftest_pmm(void)
@@ -189,7 +193,14 @@ void selftest_run_all(void)
     failures += (rc_heap != 0);
     failures += (rc_ata != 0);
 
-    term_print("Failures: ", COLOR_WHITE);
+    term_print("Summary: failures=", COLOR_WHITE);
     term_print_hex((uint32_t)failures, COLOR_YELLOW);
-    term_print("\n", COLOR_WHITE);
+    term_print("  (", COLOR_WHITE);
+    term_print("PMM=", COLOR_WHITE);
+    term_print_hex((uint32_t)rc_pmm, COLOR_YELLOW);
+    term_print("  HEAP=", COLOR_WHITE);
+    term_print_hex((uint32_t)rc_heap, COLOR_YELLOW);
+    term_print("  ATA=", COLOR_WHITE);
+    term_print_hex((uint32_t)rc_ata, COLOR_YELLOW);
+    term_print(")\n", COLOR_WHITE);
 }

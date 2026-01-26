@@ -70,6 +70,12 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 
 This repository is currently private / all-rights-reserved. See `NOTICE`.
 
+## 🧹 Project Hygiene
+
+- Formatting baseline: `.editorconfig`
+- Contribution guidance: `CONTRIBUTING.md`
+- Ownership / review routing: `.github/CODEOWNERS`
+
 ---
 
 ## 💻 Kernel Shell Commands

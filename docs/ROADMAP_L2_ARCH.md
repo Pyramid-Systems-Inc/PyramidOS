@@ -57,6 +57,7 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 * **PIT:** 8253/8254 (Channel 0, Mode 3) @ 100 Hz.
 * **Usage:** Preemptive Scheduler quantum & System Uptime.
+* **Power Model:** When waiting, the kernel uses a centralized idle primitive (`cpu_idle()` = `sti; hlt`) to avoid busy-waiting.
 
 ### 3.3 Storage (ATA/PIO)
 
@@ -150,6 +151,11 @@ This document details the internal design of the kernel subsystems. It bridges t
     ```
 
 ## 7. 🩺 System Integrity & Diagnostics (SID)
+
+### 7.0 Console / Terminal
+
+* **Current:** VGA Text Mode terminal driver (`kernel/drivers/terminal.c/.h`) used by the kernel core, shell, and panic paths.
+* **Goal:** Keep console output behind a stable driver API to prevent cross-module `extern` coupling.
 
 ### 7.1 Power-On Self-Test (POST)
 *   **Concept:** A dedicated boot-time routine that validates hardware and kernel subsystems before the Shell launches.
