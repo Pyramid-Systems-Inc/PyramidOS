@@ -16,6 +16,9 @@
 | **Legacy BIOS (Stage 1)** | ✅ | MBR, 512-byte limit, CHS/LBA disk reading. |
 | **Legacy BIOS (Stage 2)** | ✅ | A20 enable, E820 memory map, Kernel Header parsing. |
 | **Protected Mode Setup** | ✅ | GDT setup, 32-bit transition, jump to Kernel Entry. |
+| **Bootloader UX (Tier 1: Text Mode Polish)** | 📅 | Stage 2 branded screen, consistent status lines, progress bar, boot menu; Stage 1 remains minimal for stability. |
+| **Bootloader UX (Tier 2: Mode 13h Splash)** | 📅 | BIOS Mode 13h (320x200x256) splash + progress bar; hard fallback to text mode. |
+| **Bootloader UX (Tier 3: VBE Splash / Installer UI)** | 🔮 | VBE high-res LFB splash and future “Blue Crystal” installer UI; robust fallback path required. |
 | **UEFI Support** | 📅 | Modern UEFI bootloader (EDK2) loading from ESP. |
 | **Multiboot Compliance** | 🔮 | Standard header for compatibility with GRUB/QEMU. |
 

@@ -19,6 +19,11 @@ This document captures long-term visions, experimental features, and ecosystem g
   * Hibernation-based "Snapshot Boot" techniques.
   * Zero-copy memory restoration.
 
+* **Bootloader UX Roadmap (3 Tiers):**
+  * **Tier 1 (Text Mode Polish):** premium-feeling branded text UI, progress bar, clear diagnostics, boot menu (lowest risk).
+  * **Tier 2 (Mode 13h Splash):** 320x200 graphics splash/progress with hard fallback to text mode.
+  * **Tier 3 (VBE Splash):** high-resolution LFB splash + future installer UI; must include robust fallback for compatibility.
+
 ## 2. 🏛️ The Sovereign Application Ecosystem
 
 * **Pyramid Component Model (PCM):**
