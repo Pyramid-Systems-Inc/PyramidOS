@@ -44,3 +44,8 @@ align 16
 kernel_stack_bottom:
     resb 16384          ; Reserve 16KB for Kernel Stack
 kernel_stack_top:
+
+; ------------------------------------------------------------------------------
+; Mark stack as non-executable (silences linker warning)
+; ------------------------------------------------------------------------------
+section .note.GNU-stack noalloc noexec nowrite progbits
