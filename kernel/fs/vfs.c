@@ -2,9 +2,6 @@
 
 #include "string.h"
 
-#define VFS_BOOL_FALSE 0u
-#define VFS_BOOL_TRUE  1u
-
 typedef struct
 {
     bool used;
