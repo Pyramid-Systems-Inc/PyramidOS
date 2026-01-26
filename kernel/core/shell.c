@@ -8,11 +8,7 @@
 #include "ata.h"
 #include "heap.h"
 #include "selftest.h"
-
-// Helper to access term_print from main.c
-extern void term_print(const char *str, uint8_t color);
-extern void term_print_hex(uint32_t n, uint8_t color);
-extern void term_clear(void);
+#include "terminal.h"
 
 #define CMD_BUF_SIZE 128
 static char cmd_buffer[CMD_BUF_SIZE];

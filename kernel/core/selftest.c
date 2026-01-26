@@ -4,10 +4,7 @@
 #include "heap.h"
 #include "ata.h"
 #include "string.h"
-
-// Console output (implemented in kernel/core/main.c)
-extern void term_print(const char *str, uint8_t color);
-extern void term_print_hex(uint32_t n, uint8_t color);
+#include "terminal.h"
 
 #define COLOR_GREEN 0x0A
 #define COLOR_WHITE 0x0F

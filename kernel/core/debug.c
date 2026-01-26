@@ -1,10 +1,6 @@
 #include "debug.h"
 #include "io.h"
-
-// External video helpers
-extern void term_print(const char *str, uint8_t color);
-extern void term_print_hex(uint32_t n, uint8_t color);
-extern void term_clear(void);
+#include "terminal.h"
 
 // Helper: Freeze the computer
 static void hang(void)

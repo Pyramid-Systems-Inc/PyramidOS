@@ -5,10 +5,7 @@
 #include "keyboard.h"
 #include "timer.h"
 #include "debug.h"
-
-// Access the print functions from main.c
-extern void term_print(const char *str, uint8_t color);
-extern void term_print_hex(uint32_t n, uint8_t color);
+#include "terminal.h"
 
 // Define IDT array (256 entries) and Pointer
 __attribute__((aligned(0x10))) static IdtEntry idt[256];

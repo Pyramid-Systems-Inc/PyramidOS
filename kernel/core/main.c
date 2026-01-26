@@ -16,22 +16,12 @@
 #include "keyboard.h"
 #include "ata.h"      // Added for Storage
 #include "string.h"   // Added for strcpy
+#include "terminal.h"
 
-// --- Function Prototypes (Forward Declarations) ---
-void term_clear(void);
-void term_print(const char* str, uint8_t color);
-void term_print_hex(uint32_t n, uint8_t color);
-void update_cursor(int x, int y);
-
-// --- VGA State ---
-volatile uint16_t* vga_buffer = (uint16_t*)0xB8000;
-const int VGA_COLS = 80;
-const int VGA_ROWS = 25;
-const uint8_t COLOR_GREEN = 0x0A;
-const uint8_t COLOR_WHITE = 0x0F;
-const uint8_t COLOR_RED   = 0x0C;
-int cursor_x = 0;
-int cursor_y = 0;
+/* Console colors (VGA text-mode attributes) */
+static const uint8_t COLOR_GREEN = TERM_COLOR_LIGHT_GREEN;
+static const uint8_t COLOR_WHITE = TERM_COLOR_WHITE;
+static const uint8_t COLOR_RED   = TERM_COLOR_LIGHT_RED;
 
 // --- Test Suites ---
 // NOTE: Tests were migrated to [`kernel/core/selftest.c`](kernel/core/selftest.c:1).
@@ -181,68 +171,6 @@ void test_ata(void) {
 }
 
 #endif // legacy test code
-
-// --- Helper Implementations ---
-
-void update_cursor(int x, int y) {
-    uint16_t pos = y * VGA_COLS + x;
-
-    // Send Low Byte
-    outb(0x3D4, 0x0F);
-    outb(0x3D5, (uint8_t)(pos & 0xFF));
-
-    // Send High Byte
-    outb(0x3D4, 0x0E);
-    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
-}
-
-void term_clear(void) {
-    for (int i = 0; i < VGA_COLS * VGA_ROWS; i++) {
-        vga_buffer[i] = ((uint16_t)0x0F << 8) | ' ';
-    }
-    cursor_x = 0;
-    cursor_y = 0;
-    update_cursor(0, 0);
-}
-
-void term_print(const char* str, uint8_t color) {
-    for (int i = 0; str[i] != '\0'; i++) {
-        if (str[i] == '\n') {
-            cursor_x = 0;
-            cursor_y++;
-        } else if (str[i] == '\b') {
-            if (cursor_x > 0) {
-                cursor_x--; 
-                int index = (cursor_y * VGA_COLS) + cursor_x;
-                vga_buffer[index] = ((uint16_t)0x0F << 8) | ' '; 
-            }
-        } else {
-            int index = (cursor_y * VGA_COLS) + cursor_x;
-            vga_buffer[index] = ((uint16_t)color << 8) | str[i];
-            cursor_x++;
-        }
-
-        if (cursor_x >= VGA_COLS) {
-            cursor_x = 0;
-            cursor_y++;
-        }
-        if (cursor_y >= VGA_ROWS) {
-            cursor_y = 0;
-            term_clear();
-        }
-    }
-    update_cursor(cursor_x, cursor_y);
-}
-
-void term_print_hex(uint32_t n, uint8_t color) {
-    term_print("0x", color);
-    char hex_chars[] = "0123456789ABCDEF";
-    for (int i = 28; i >= 0; i -= 4) {
-        char c = hex_chars[(n >> i) & 0xF];
-        char str[2] = {c, '\0'};
-        term_print(str, color);
-    }
-}
 
 // --- Main Entry ---
 
