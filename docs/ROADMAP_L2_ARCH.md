@@ -63,8 +63,9 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 * **Mode:** PIO (Programmed I/O) initially, DMA later.
 * **Addressing:** LBA28 (28-bit Logical Block Addressing).
-* **Current Implementation (v0.8):**
-  * Read-only LBA28 PIO path implemented via `ata_read_sector(drive, lba, buffer)`.
+* **Current Implementation (v0.8.1+):**
+  * Read-only LBA28 PIO path via `ata_read_sector(drive, lba, buffer)`.
+  * IDENTIFY-based presence detection + master/slave probing to avoid phantom devices.
   * Exposed to the user via `diskread <lba>` in KShell and validated by the diagnostics ATA selftest.
 
 ---
@@ -118,11 +119,18 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 * **Role:** Abstract interface for file operations (`open`, `read`, `write`, `close`).
 * **Mount Points:** Root `/` mapped to primary partition.
-* **Current Implementation (v0.8.1+):** Static mount table + FD table (`open/read/close`), with `/` mounted to a `nullfs` placeholder during bring-up; ATA is exposed via a generic block-device registry as `disk0`.
+* **Current Implementation (v0.8.1+):**
+  * Static mount table + FD table (`open/read/close`).
+  * `/` mounted to a `nullfs` placeholder during bring-up.
+  * `/dev` mounted to `devfs` (virtual devices as file nodes).
+  * ATA exposed via a generic block-device registry as `disk0` (and optional `disk1`).
+  * MBR scan registers `disk0p1..disk0p4` as partition block devices.
+  * PyFS read-only probe can mount at `/py` for verification.
 
 ### 5.2 Pyramid File System (PyFS)
 
 * **Design Goal:** A custom, journaled filesystem optimized for the kernel.
+* **Phase 1 (Current):** Read-only bring-up with superblock probing on a partition device (e.g., `disk0p1`) and a verification read path (`/py/superblock`).
 * **Structure:**
   * **Superblock:** FS Geometry and Magic.
   * **Inode Table:** Metadata (Permissions, Size, Block Pointers).

@@ -43,6 +43,8 @@
 ## 5. 💾 Storage Hardening (ATA)
 
 - [x] **LBA28 Read:** Implement real LBA sector reads end-to-end (driver API + `diskread` command + diagnostics validation).
+- [x] **IDENTIFY Detection:** Probe master/slave and gate reads on presence.
+- [x] **Block Registration Gating:** Only register `disk0` when a real device exists (avoid phantom disks).
 
 ---
 
@@ -58,12 +60,21 @@
 - [x] **Define VFS API:** Static mount table + FD table (`open/read/close`).
 - [x] **Implement VFS Core:** Longest-prefix mount resolution + safe bounds validation.
 - [x] **Block Device Registry:** Generic `BlockDevice` registry API.
-- [x] **ATA Block Wrapper:** Register primary master as `disk0` via block layer.
+- [x] **ATA Block Wrapper:** Register ATA as `disk0` (and optional `disk1`) via block layer.
 - [x] **Shell Visibility:** Add `blkinfo` and `mounts` commands.
 
 ---
 
-## 8. ✅ Completed Tasks (Archive)
+## 8. 📁 Filesystem / VFS Bring-up (Phase 2)
+
+- [x] **DevFS:** Mount `/dev` and expose `/dev/disk0`, `/dev/null`, `/dev/zero`.
+- [x] **MBR Scan:** Register `disk0p1..disk0p4` partition block devices.
+- [x] **PyFS Probe (RO):** Probe `disk0p1` and mount at `/py` if superblock valid.
+- [x] **Verification Command:** `pyfs_sb` reads `/py/superblock` through VFS.
+
+---
+
+## 9. ✅ Completed Tasks (Archive)
 
 - [x] Keyboard Driver & KShell.
 - [x] Time/RTC.

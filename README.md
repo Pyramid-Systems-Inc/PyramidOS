@@ -26,9 +26,12 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 | **CPU Idle / Power Management** | ✅ Stable | Uses STI+HLT (`cpu_idle()`) to avoid busy-waiting when idle. |
 | **Kernel Heap** | ✅ Stable | Doubly-linked list allocator with `kmalloc`/`kfree` and coalescing. |
 | **VMM** | ✅ Stable | Paging enabled; Heap mapped to `0xD0000000`. |
-| **Storage (ATA/PIO)** | 🚧 In Progress | ATA PIO LBA28 sector reads (Read-Only); validated by `diskread` + diagnostics. |
-| **Block Layer (Registry)** | ✅ Stable | Generic `BlockDevice` registry; ATA registered as `disk0`. |
-| **VFS (Foundation)** | 🚧 In Progress | Static mount table + FD table; root `/` mounted to `nullfs` during bring-up. |
+| **Storage (ATA/PIO)** | 🚧 In Progress | LBA28 PIO reads (Read-Only) + IDENTIFY-based presence detection, stricter status checks. |
+| **Block Layer (Registry)** | ✅ Stable | Generic `BlockDevice` registry; ATA registered only when a real device is present (`disk0`, optional `disk1`). |
+| **DevFS (/dev)** | ✅ Stable | Virtual device filesystem exposing `/dev/disk0`, `/dev/disk1`, `/dev/null`, `/dev/zero`. |
+| **Partition Discovery (MBR)** | ✅ Stable | Parses MBR and registers `disk0p1..disk0p4` block devices (read-only). |
+| **VFS (Foundation)** | ✅ Stable | Static mount table + FD table; `/` is `nullfs`, `/dev` is `devfs`. |
+| **PyFS (Read-Only Bring-up)** | 🚧 In Progress | Probes `disk0p1` and mounts at `/py` if superblock is valid; exposes `/py/superblock` for verification. |
 
 ---
 
@@ -92,6 +95,9 @@ Once booted, the **KShell** accepts the following commands:
 * `sleep`   : Pause execution for 1 second (Busy-wait test).
 * `reboot`  : Restart the system (via Keyboard Controller).
 * `diskread`: Read and hex-dump a disk sector by LBA (e.g., `diskread 0`, `diskread 60`).
+* `blkinfo` : List registered block devices (includes `disk0p1` after MBR scan).
+* `mounts`  : List VFS mounts (expects `/dev` + optional `/py`).
+* `pyfs_sb` : Read `/py/superblock` via VFS (PyFS probe verification).
 * `diagnose`: Run kernel diagnostics (PMM/Heap/ATA).
 * `crash`   : Force a kernel crash (for testing the panic/exception path).
 
@@ -149,7 +155,7 @@ Once booted, the **KShell** accepts the following commands:
 
 ## 🔮 Roadmap Snapshot
 
-* **Current:** Storage consumption hardening: Block Layer + VFS foundation.
-* **Next Up:** Filesystem implementation (PyFS) and VFS-backed shell commands (`ls`, `cat`, etc).
+* **Current:** Storage consumption bring-up: DevFS + MBR partitions + PyFS read-only probe.
+* **Next Up:** PyFS real directory/file reads + VFS-backed shell commands (`ls`, `cat`, etc).
 
 *See `docs/` for detailed Roadmap Layers.*

@@ -48,8 +48,10 @@
 | **Diagnostics (Selftest)** | ✅ | Boot-time + on-demand kernel diagnostics via KShell `diagnose` (PMM/Heap/ATA). |
 | **RTC/CMOS** | ✅ | Real-Time Clock driver for system Date/Time. |
 | **System Timer** | ✅ | PIT Driver (100Hz) for uptime and sleep (idle uses STI+HLT via `cpu_idle()`). |
-| **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only): LBA28 PIO sector reads (`diskread` + diagnostics validated). |
-| **Filesystem (VFS)** | 🚧 | VFS foundation (mount table + file descriptors) to consume block devices safely. |
+| **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only): LBA28 PIO reads + IDENTIFY detection + safer polling/timeouts. |
+| **Filesystem (VFS)** | 🚧 | VFS foundation: mount table + file descriptors + DevFS (`/dev`) exposure. |
+| **Partition Discovery (MBR)** | 🚧 | Register `disk0p1..disk0p4` block devices for filesystem mounting. |
+| **PyFS (Read-Only)** | 🚧 | Probe + mount PyFS on a partition device (e.g., `disk0p1`) before full RW+journaling. |
 
 ---
 
