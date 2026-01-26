@@ -175,7 +175,7 @@ void test_ata(void) {
 // --- Main Entry ---
 
 void k_main(void) {
-    term_clear();
+    term_init();
     term_print("PyramidOS Kernel v0.8 - Storage Test\n", COLOR_GREEN);
     term_print("------------------------------------\n", COLOR_WHITE);
 

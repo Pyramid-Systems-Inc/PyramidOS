@@ -127,6 +127,7 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/vmm.o \
           $(BUILD_DIR)/pic.o \
           $(BUILD_DIR)/keyboard.o \
+          $(BUILD_DIR)/terminal.o \
           $(BUILD_DIR)/shell.o \
           $(BUILD_DIR)/selftest.o \
           $(BUILD_DIR)/debug.o \
