@@ -138,6 +138,7 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/ata.o \
           $(BUILD_DIR)/block.o \
           $(BUILD_DIR)/ata_block.o \
+          $(BUILD_DIR)/mbr.o \
           $(BUILD_DIR)/vfs.o \
           $(BUILD_DIR)/nullfs.o \
           $(BUILD_DIR)/devfs.o

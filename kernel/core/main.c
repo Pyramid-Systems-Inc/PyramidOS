@@ -22,6 +22,7 @@
 
 #include "block.h"
 #include "ata_block.h"
+#include "mbr.h"
 
 #include "fs/vfs.h"
 #include "fs/nullfs.h"
@@ -219,6 +220,25 @@ void k_main(void) {
             term_print("WARN: ATA block registration failed (rc=", COLOR_WHITE);
             term_print_hex((uint32_t)blk_rc, COLOR_YELLOW);
             term_print(")\n", COLOR_WHITE);
+        }
+    }
+
+    term_print("Scanning MBR Partitions...\n", COLOR_WHITE);
+    {
+        BlockDevice *disk0 = block_get_by_name("disk0");
+        if (disk0)
+        {
+            int mbr_rc = mbr_scan_and_register(disk0, "disk0");
+            if (mbr_rc != 0)
+            {
+                term_print("WARN: MBR scan failed (rc=", COLOR_WHITE);
+                term_print_hex((uint32_t)mbr_rc, COLOR_YELLOW);
+                term_print(")\n", COLOR_WHITE);
+            }
+        }
+        else
+        {
+            term_print("WARN: disk0 not present; skipping MBR scan\n", COLOR_WHITE);
         }
     }
 

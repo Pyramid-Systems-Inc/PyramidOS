@@ -30,6 +30,7 @@
 #define MBR_ERR_IO                    2
 #define MBR_ERR_BAD_SIGNATURE         3
 #define MBR_ERR_NO_SPACE              4
+#define MBR_ERR_NOT_SUPPORTED         5
 
 typedef struct
 {
