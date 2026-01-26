@@ -6,6 +6,8 @@
 #include "timer.h"
 #include "rtc.h"
 #include "ata.h"
+#include "block.h"
+#include "fs/vfs.h"
 #include "heap.h"
 #include "selftest.h"
 #include "terminal.h"
@@ -39,6 +41,8 @@ void execute_command(void)
         term_print("  reboot   - Restart the system\n", 0x07);
         term_print("  crash    - Force a kernel crash (for testing)\n", 0x07);
         term_print("  diskread - Read a disk sector (e.g., diskread 0)\n", 0x07);
+        term_print("  blkinfo  - List registered block devices\n", 0x07);
+        term_print("  mounts   - List VFS mounts\n", 0x07);
         term_print("  diagnose - Run kernel diagnostics (PMM/Heap/ATA)\n", 0x07);
     }
     else if (strcmp(cmd_buffer, "clear") == 0)
@@ -52,6 +56,52 @@ void execute_command(void)
         term_print("\nFree RAM:  ", 0x07);
         term_print_hex(pmm_get_free_memory(), 0x07);
         term_print("\n", 0x07);
+    }
+    else if (strcmp(cmd_buffer, "blkinfo") == 0)
+    {
+        uint32_t n = block_count();
+
+        term_print("Block devices: ", 0x07);
+        term_print_hex(n, 0x0E);
+        term_print("\n", 0x07);
+
+        for (uint32_t i = 0; i < n; i++)
+        {
+            BlockDevice *dev = block_get(i);
+            if (!dev)
+                continue;
+
+            term_print("  [", 0x07);
+            term_print_hex(i, 0x07);
+            term_print("] ", 0x07);
+
+            term_print(dev->name, 0x0B);
+            term_print("  sector_size=", 0x07);
+            term_print_hex(dev->sector_size, 0x0E);
+            term_print("\n", 0x07);
+        }
+    }
+    else if (strcmp(cmd_buffer, "mounts") == 0)
+    {
+        uint32_t n = vfs_mount_count();
+
+        term_print("Mounts: ", 0x07);
+        term_print_hex(n, 0x0E);
+        term_print("\n", 0x07);
+
+        for (uint32_t i = 0; i < n; i++)
+        {
+            const char *mp = vfs_mountpoint(i);
+            const char *fs = vfs_fs_name(i);
+            if (!mp || !fs)
+                continue;
+
+            term_print("  ", 0x07);
+            term_print(mp, 0x0B);
+            term_print(" -> ", 0x07);
+            term_print(fs, 0x0E);
+            term_print("\n", 0x07);
+        }
     }
     else if (strcmp(cmd_buffer, "uptime") == 0)
     {

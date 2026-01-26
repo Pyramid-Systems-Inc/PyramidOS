@@ -18,10 +18,18 @@
 #include "string.h"   // Added for strcpy
 #include "terminal.h"
 #include "cpu.h"
+#include "debug.h"
+
+#include "block.h"
+#include "ata_block.h"
+
+#include "fs/vfs.h"
+#include "fs/nullfs.h"
 
 /* Console colors (VGA text-mode attributes) */
-static const uint8_t COLOR_GREEN = TERM_COLOR_LIGHT_GREEN;
-static const uint8_t COLOR_WHITE = TERM_COLOR_WHITE;
+static const uint8_t COLOR_GREEN  = TERM_COLOR_LIGHT_GREEN;
+static const uint8_t COLOR_WHITE  = TERM_COLOR_WHITE;
+static const uint8_t COLOR_YELLOW = TERM_COLOR_YELLOW;
 
 // --- Test Suites ---
 // NOTE: Tests were migrated to [`kernel/core/selftest.c`](kernel/core/selftest.c:1).
@@ -195,6 +203,32 @@ void k_main(void) {
     // Subsystem Init
     term_print("Initializing Heap...\n", COLOR_WHITE);
     heap_init();
+
+    /* ----------------------------------------------------------------------
+     * Block layer + VFS bring-up
+     * ---------------------------------------------------------------------- */
+    term_print("Initializing Block Layer...\n", COLOR_WHITE);
+    block_init();
+
+    term_print("Registering ATA Block Devices...\n", COLOR_WHITE);
+    {
+        int blk_rc = ata_block_register_devices();
+        if (blk_rc != BLOCK_SUCCESS)
+        {
+            term_print("WARN: ATA block registration failed (rc=", COLOR_WHITE);
+            term_print_hex((uint32_t)blk_rc, COLOR_YELLOW);
+            term_print(")\n", COLOR_WHITE);
+        }
+    }
+
+    term_print("Initializing VFS...\n", COLOR_WHITE);
+    vfs_init();
+
+    {
+        int vfs_rc = vfs_mount("/", "nullfs", &NULLFS_OPS, 0);
+        if (vfs_rc != VFS_OK)
+            panic("VFS: mount('/') failed");
+    }
 
     // Run Diagnostics (PMM + Heap + ATA)
     selftest_run_all();

@@ -28,6 +28,7 @@ ARCH_DIR    = $(KERNEL_DIR)/arch/i386
 CORE_DIR    = $(KERNEL_DIR)/core
 DRIVERS_DIR = $(KERNEL_DIR)/drivers
 LIB_DIR     = $(KERNEL_DIR)/lib
+FS_DIR      = $(KERNEL_DIR)/fs
 
 # Define include paths for all modules to find headers
 INCLUDES = -I$(KERNEL_DIR) \
@@ -98,7 +99,7 @@ $(BUILD_DIR):
 
 # --- Source Discovery (VPATH) ---
 # Tell Make to look for .c and .asm files in these directories
-vpath %.c $(CORE_DIR) $(DRIVERS_DIR) $(LIB_DIR) $(ARCH_DIR)
+vpath %.c $(CORE_DIR) $(DRIVERS_DIR) $(LIB_DIR) $(FS_DIR) $(ARCH_DIR)
 vpath %.asm $(ARCH_DIR)
 
 # --- Compile C Sources ---
@@ -134,7 +135,11 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/timer.o \
           $(BUILD_DIR)/rtc.o \
           $(BUILD_DIR)/heap.o \
-          $(BUILD_DIR)/ata.o
+          $(BUILD_DIR)/ata.o \
+          $(BUILD_DIR)/block.o \
+          $(BUILD_DIR)/ata_block.o \
+          $(BUILD_DIR)/vfs.o \
+          $(BUILD_DIR)/nullfs.o
 
 $(KERNEL_BIN): $(OBJECTS)
 	$(LD) $(LDFLAGS) -o $(KERNEL_ELF) $^
