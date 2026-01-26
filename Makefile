@@ -137,4 +137,4 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 run: $(DISK_IMG)
-	qemu-system-i386 -hda $(DISK_IMG)
+	qemu-system-i386 -drive format=raw,file=$(DISK_IMG)

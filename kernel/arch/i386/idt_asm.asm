@@ -132,8 +132,7 @@ isr_common_stub:
 
     popa                ; Pop general registers
     add esp, 8          ; Clean up error code and ISR number
-    sti                 ; Re-enable interrupts
-    iret                ; Interrupt Return
+    iret                ; Interrupt Return (restores IF from saved EFLAGS)
 
 ; ------------------------------------------------------------------------------
 ; Mark stack as non-executable (silences linker warning)

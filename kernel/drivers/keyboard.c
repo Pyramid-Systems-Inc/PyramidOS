@@ -52,22 +52,40 @@ static void buffer_write(char c)
     // If full, drop the key (simple solution)
 }
 
-// Public: Read char from buffer
-char keyboard_get_char(void)
+// Public: Non-blocking read
+char keyboard_try_get_char(void)
 {
-    // While buffer is empty...
-    while (read_ptr == write_ptr)
-    {
-        // HALT the CPU.
-        // The CPU will wake up when an Interrupt occurs (IRQ1 Keyboard or IRQ0 Timer).
-        // It will handle the ISR, then return exactly here.
-        // Then the loop condition is checked again.
-        asm volatile("hlt");
-    }
+    if (read_ptr == write_ptr)
+        return 0;
 
     char c = kb_buffer[read_ptr];
-    read_ptr = (read_ptr + 1) % KB_BUFFER_SIZE;
+    read_ptr = (uint16_t)((read_ptr + 1u) % KB_BUFFER_SIZE);
     return c;
+}
+
+// Public: Blocking read (race-free halt loop)
+char keyboard_get_char(void)
+{
+    for (;;)
+    {
+        /*
+         * Avoid missed-wakeup:
+         *  - Disable interrupts
+         *  - Re-check the buffer
+         *  - If still empty: atomically enable interrupts then HLT
+         */
+        asm volatile("cli");
+
+        if (read_ptr != write_ptr)
+        {
+            char c = kb_buffer[read_ptr];
+            read_ptr = (uint16_t)((read_ptr + 1u) % KB_BUFFER_SIZE);
+            asm volatile("sti");
+            return c;
+        }
+
+        asm volatile("sti\n\thlt");
+    }
 }
 
 void keyboard_handler(void)

@@ -12,6 +12,8 @@
 #include "shell.h"
 #include "selftest.h"
 #include "heap.h"
+#include "timer.h"
+#include "keyboard.h"
 #include "ata.h"      // Added for Storage
 #include "string.h"   // Added for strcpy
 
@@ -254,6 +256,13 @@ void k_main(void) {
     idt_init();
     pic_remap();
     vmm_init();
+
+    // Hardware Init (before enabling interrupts)
+    term_print("Initializing PIT Timer...\n", COLOR_WHITE);
+    timer_init();
+
+    term_print("Initializing Keyboard...\n", COLOR_WHITE);
+    keyboard_init();
     
     // Subsystem Init
     term_print("Initializing Heap...\n", COLOR_WHITE);
@@ -262,8 +271,10 @@ void k_main(void) {
     // Run Diagnostics (PMM + Heap + ATA)
     selftest_run_all();
 
-    // Interaction
-    outb(0x21, 0xFD); // Unmask Keyboard
+    // IRQ Policy: start with everything masked, then enable only what we use.
+    pic_disable();
+    pic_clear_mask(0); // IRQ0: PIT Timer
+    pic_clear_mask(1); // IRQ1: PS/2 Keyboard
     asm volatile("sti");
 
     shell_init();

@@ -1,7 +1,7 @@
 #include "idt.h"
 #include "pic.h"
 #include "io.h"
-#include "stdint.h"
+#include <stdint.h>
 #include "keyboard.h"
 #include "timer.h"
 #include "debug.h"
@@ -114,7 +114,17 @@ void idt_init(void)
     idt_set_gate(18, (uint32_t)isr18, 0x08, 0x8E);
     idt_set_gate(19, (uint32_t)isr19, 0x08, 0x8E);
     idt_set_gate(20, (uint32_t)isr20, 0x08, 0x8E);
-    // ... 21-31 can be mapped if needed, defaulting to 0
+    idt_set_gate(21, (uint32_t)isr21, 0x08, 0x8E);
+    idt_set_gate(22, (uint32_t)isr22, 0x08, 0x8E);
+    idt_set_gate(23, (uint32_t)isr23, 0x08, 0x8E);
+    idt_set_gate(24, (uint32_t)isr24, 0x08, 0x8E);
+    idt_set_gate(25, (uint32_t)isr25, 0x08, 0x8E);
+    idt_set_gate(26, (uint32_t)isr26, 0x08, 0x8E);
+    idt_set_gate(27, (uint32_t)isr27, 0x08, 0x8E);
+    idt_set_gate(28, (uint32_t)isr28, 0x08, 0x8E);
+    idt_set_gate(29, (uint32_t)isr29, 0x08, 0x8E);
+    idt_set_gate(30, (uint32_t)isr30, 0x08, 0x8E);
+    idt_set_gate(31, (uint32_t)isr31, 0x08, 0x8E);
 
     // 3. Install IRQ Handlers (32-47)
     idt_set_gate(32, (uint32_t)irq0, 0x08, 0x8E);
