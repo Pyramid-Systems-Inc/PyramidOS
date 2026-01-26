@@ -39,7 +39,13 @@
 
 ---
 
-## 5. ✅ Completed Tasks (Archive)
+## 5. 💾 Storage Hardening (ATA)
+
+- [x] **LBA28 Read:** Implement real LBA sector reads end-to-end (driver API + `diskread` command + diagnostics validation).
+
+---
+
+## 6. ✅ Completed Tasks (Archive)
 
 - [x] Keyboard Driver & KShell.
 - [x] Time/RTC.

@@ -25,6 +25,7 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 | **VGA Driver** | ✅ Stable | Text Mode (80x25) with hardware cursor support. |
 | **Kernel Heap** | ✅ Stable | Doubly-linked list allocator with `kmalloc`/`kfree` and coalescing. |
 | **VMM** | ✅ Stable | Paging enabled; Heap mapped to `0xD0000000`. |
+| **Storage (ATA/PIO)** | 🚧 In Progress | ATA PIO LBA28 sector reads (Read-Only); validated by `diskread` + diagnostics. |
 
 ---
 
@@ -65,7 +66,7 @@ Once booted, the **KShell** accepts the following commands:
 * `uptime`  : Show system running time (ticks/seconds).
 * `sleep`   : Pause execution for 1 second (Busy-wait test).
 * `reboot`  : Restart the system (via Keyboard Controller).
-* `diskread`: Read and hex-dump a disk sector (e.g., `diskread 0`).
+* `diskread`: Read and hex-dump a disk sector by LBA (e.g., `diskread 0`, `diskread 60`).
 * `diagnose`: Run kernel diagnostics (PMM/Heap/ATA).
 * `crash`   : Force a kernel crash (for testing the panic/exception path).
 

@@ -48,7 +48,7 @@
 | **Diagnostics (Selftest)** | ✅ | Boot-time + on-demand kernel diagnostics via KShell `diagnose` (PMM/Heap/ATA). |
 | **RTC/CMOS** | ✅ | Real-Time Clock driver for system Date/Time. |
 | **System Timer** | ✅ | PIT Driver (100Hz) for uptime and sleep. |
-| **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only) for hard disks. |
+| **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only): LBA28 PIO sector reads (`diskread` + diagnostics validated). |
 | **Filesystem (VFS)** | 📅 | Virtual File System abstraction layer. |
 
 ---

@@ -62,6 +62,9 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 * **Mode:** PIO (Programmed I/O) initially, DMA later.
 * **Addressing:** LBA28 (28-bit Logical Block Addressing).
+* **Current Implementation (v0.8):**
+  * Read-only LBA28 PIO path implemented via `ata_read_sector(drive, lba, buffer)`.
+  * Exposed to the user via `diskread <lba>` in KShell and validated by the diagnostics ATA selftest.
 
 ---
 
