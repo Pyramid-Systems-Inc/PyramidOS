@@ -1,9 +1,9 @@
 # Layer 3: Tactical Roadmap (Current Sprint)
 
 **Focus:** Foundation Hardening & Core Optimization.
-**Current Kernel:** v0.7 -> **Target:** v0.7.5 (Hardened).
+**Current Kernel:** v0.8 -> **Target:** v0.8.1 (Hardened).
 
-> **Objective:** Resolve technical debt and improve system stability before implementing Dynamic Memory.
+> **Objective:** Resolve technical debt and improve system stability before implementing Filesystem/VFS and Userland.
 
 ---
 
@@ -20,8 +20,8 @@
 
 *Current Status: O(N) Linear Search (First-Fit).*
 
-- [ ] **Next-Fit Algorithm:** Add `last_free_index` tracking to `pmm.c`.
-- [ ] **Speed Test:** Verify allocations remain fast as memory fills.
+- [x] **Next-Fit Algorithm:** Add `last_free_index` tracking to `pmm.c`.
+- [x] **Speed Test:** Verify allocations remain fast as memory fills (validated via diagnostics / fragmentation test).
 
 ## 3. ⚡ Power Management
 
@@ -33,9 +33,9 @@
 ---
 
 ## 4. 🐞 Refactoring & Diagnostics
-- [ ] **Consolidate Tests:** Move `test_heap` and `test_ata` from `main.c` into a new module `kernel/selftest.c`.
-- [ ] **Implement `run_diagnostics()`:** A function called at the end of `k_main` that runs all tests and prints a summary report.
-- [ ] **Shell Command:** Add `diagnose` to KShell to re-run hardware checks on demand.
+- [x] **Consolidate Tests:** Move `test_heap` and `test_ata` from `main.c` into a new module `kernel/core/selftest.c`.
+- [x] **Implement `run_diagnostics()`:** Implement `selftest_run_all()` called at the end of `k_main` that runs all tests and prints a summary report.
+- [x] **Shell Command:** Add `diagnose` to KShell to re-run hardware checks on demand.
 
 ---
 

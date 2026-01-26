@@ -92,6 +92,7 @@ OBJECTS = $(BUILD_DIR)/entry.o \
           $(BUILD_DIR)/pic.o \
           $(BUILD_DIR)/keyboard.o \
           $(BUILD_DIR)/shell.o \
+          $(BUILD_DIR)/selftest.o \
           $(BUILD_DIR)/debug.o \
           $(BUILD_DIR)/timer.o \
           $(BUILD_DIR)/rtc.o \

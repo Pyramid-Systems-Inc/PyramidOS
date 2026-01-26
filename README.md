@@ -58,13 +58,16 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 
 Once booted, the **KShell** accepts the following commands:
 
-* `help` : List available commands.
-* `clear`: Clear the screen and reset cursor.
-* `mem`  : Display Physical Memory stats (Total/Free RAM).
-* `time` : Display current Date and Time (from RTC).
-* `uptime`: Show system running time (ticks/seconds).
-* `sleep`: Pause execution for 1 second (Busy-wait test).
-* `reboot`: Restart the system (via Keyboard Controller).
+* `help`    : List available commands.
+* `clear`   : Clear the screen and reset cursor.
+* `mem`     : Display Physical Memory stats (Total/Free RAM).
+* `time`    : Display current Date and Time (from RTC).
+* `uptime`  : Show system running time (ticks/seconds).
+* `sleep`   : Pause execution for 1 second (Busy-wait test).
+* `reboot`  : Restart the system (via Keyboard Controller).
+* `diskread`: Read and hex-dump a disk sector (e.g., `diskread 0`).
+* `diagnose`: Run kernel diagnostics (PMM/Heap/ATA).
+* `crash`   : Force a kernel crash (for testing the panic/exception path).
 
 ---
 

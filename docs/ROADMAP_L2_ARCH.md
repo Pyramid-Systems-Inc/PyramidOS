@@ -150,9 +150,12 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 ### 7.1 Power-On Self-Test (POST)
 *   **Concept:** A dedicated boot-time routine that validates hardware and kernel subsystems before the Shell launches.
-*   **Architecture:**
-    *   **Modular Tests:** Each driver (PMM, VMM, ATA) exports a `_test()` function.
-    *   **The Check-Engine:** A master sequencer that runs tests and halts the boot if a critical subsystem (like Memory) fails.
+*   **Current Implementation (v0.8):**
+    *   `kernel/core/selftest.c` provides `selftest_run_all()` and individual tests for PMM/Heap/ATA.
+    *   Diagnostics run automatically at boot and are also available via the KShell command `diagnose`.
+*   **Architecture (Next Iteration):**
+    *   **Modular Tests:** Each subsystem exports a focused test function (PMM, VMM, ATA, Heap, etc).
+    *   **The Check-Engine:** A master sequencer that can halt boot if a critical subsystem fails (Memory, Paging, Interrupts).
 *   **Visual Feedback:** A dedicated status screen listing components:
     ```text
     [ OK ] Physical Memory Manager

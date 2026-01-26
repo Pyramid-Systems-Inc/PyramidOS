@@ -10,6 +10,7 @@
 #include "pic.h"
 #include "io.h"
 #include "shell.h"
+#include "selftest.h"
 #include "heap.h"
 #include "ata.h"      // Added for Storage
 #include "string.h"   // Added for strcpy
@@ -31,6 +32,10 @@ int cursor_x = 0;
 int cursor_y = 0;
 
 // --- Test Suites ---
+// NOTE: Tests were migrated to [`kernel/core/selftest.c`](kernel/core/selftest.c:1).
+//       Keep the legacy in-file test code disabled.
+//       Use [`selftest_run_all()`](kernel/core/selftest.c:1) at boot or the "diagnose" KShell command.
+#if 0
 
 #define PMM_TEST_PAGES 512u
 static void *pmm_test_pages[PMM_TEST_PAGES];
@@ -173,6 +178,8 @@ void test_ata(void) {
     kfree(buffer);
 }
 
+#endif // legacy test code
+
 // --- Helper Implementations ---
 
 void update_cursor(int x, int y) {
@@ -244,7 +251,6 @@ void k_main(void) {
 
     // Core Init
     pmm_init((BootInfo*)BOOT_INFO_ADDRESS);
-    test_pmm_nextfit();
     idt_init();
     pic_remap();
     vmm_init();
@@ -253,9 +259,8 @@ void k_main(void) {
     term_print("Initializing Heap...\n", COLOR_WHITE);
     heap_init();
 
-    // Run Tests
-    test_heap();
-    test_ata();  // <--- Run the Disk Test
+    // Run Diagnostics (PMM + Heap + ATA)
+    selftest_run_all();
 
     // Interaction
     outb(0x21, 0xFD); // Unmask Keyboard

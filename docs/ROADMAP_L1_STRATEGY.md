@@ -45,6 +45,7 @@
 | :--- | :---: | :--- |
 | **Keyboard Driver** | ✅ | Scancode translation, Circular Buffer, Shift/Caps support. |
 | **Text Shell (KShell)** | ✅ | Interactive CLI, Command parsing, History (Basic). |
+| **Diagnostics (Selftest)** | ✅ | Boot-time + on-demand kernel diagnostics via KShell `diagnose` (PMM/Heap/ATA). |
 | **RTC/CMOS** | ✅ | Real-Time Clock driver for system Date/Time. |
 | **System Timer** | ✅ | PIT Driver (100Hz) for uptime and sleep. |
 | **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only) for hard disks. |
