@@ -118,6 +118,7 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 * **Role:** Abstract interface for file operations (`open`, `read`, `write`, `close`).
 * **Mount Points:** Root `/` mapped to primary partition.
+* **Current Implementation (v0.8.1+):** Static mount table + FD table (`open/read/close`), with `/` mounted to a `nullfs` placeholder during bring-up; ATA is exposed via a generic block-device registry as `disk0`.
 
 ### 5.2 Pyramid File System (PyFS)
 

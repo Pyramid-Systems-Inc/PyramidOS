@@ -27,6 +27,8 @@ The system boots into a **Protected Mode Shell** with memory management, hardwar
 | **Kernel Heap** | ✅ Stable | Doubly-linked list allocator with `kmalloc`/`kfree` and coalescing. |
 | **VMM** | ✅ Stable | Paging enabled; Heap mapped to `0xD0000000`. |
 | **Storage (ATA/PIO)** | 🚧 In Progress | ATA PIO LBA28 sector reads (Read-Only); validated by `diskread` + diagnostics. |
+| **Block Layer (Registry)** | ✅ Stable | Generic `BlockDevice` registry; ATA registered as `disk0`. |
+| **VFS (Foundation)** | 🚧 In Progress | Static mount table + FD table; root `/` mounted to `nullfs` during bring-up. |
 
 ---
 
@@ -147,7 +149,7 @@ Once booted, the **KShell** accepts the following commands:
 
 ## 🔮 Roadmap Snapshot
 
-* **Current:** Dynamic Memory (Heap).
-* **Next Up:** Storage Drivers (ATA/PIO) and Filesystem.
+* **Current:** Storage consumption hardening: Block Layer + VFS foundation.
+* **Next Up:** Filesystem implementation (PyFS) and VFS-backed shell commands (`ls`, `cat`, etc).
 
 *See `docs/` for detailed Roadmap Layers.*

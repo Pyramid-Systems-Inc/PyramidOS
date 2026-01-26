@@ -53,7 +53,17 @@
 
 ---
 
-## 7. ✅ Completed Tasks (Archive)
+## 7. 📁 Filesystem / VFS Foundation (Phase 1)
+
+- [x] **Define VFS API:** Static mount table + FD table (`open/read/close`).
+- [x] **Implement VFS Core:** Longest-prefix mount resolution + safe bounds validation.
+- [x] **Block Device Registry:** Generic `BlockDevice` registry API.
+- [x] **ATA Block Wrapper:** Register primary master as `disk0` via block layer.
+- [x] **Shell Visibility:** Add `blkinfo` and `mounts` commands.
+
+---
+
+## 8. ✅ Completed Tasks (Archive)
 
 - [x] Keyboard Driver & KShell.
 - [x] Time/RTC.

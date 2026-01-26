@@ -49,7 +49,7 @@
 | **RTC/CMOS** | ✅ | Real-Time Clock driver for system Date/Time. |
 | **System Timer** | ✅ | PIT Driver (100Hz) for uptime and sleep (idle uses STI+HLT via `cpu_idle()`). |
 | **Storage Drivers** | 🚧 | ATA/PIO driver (Read-Only): LBA28 PIO sector reads (`diskread` + diagnostics validated). |
-| **Filesystem (VFS)** | 📅 | Virtual File System abstraction layer. |
+| **Filesystem (VFS)** | 🚧 | VFS foundation (mount table + file descriptors) to consume block devices safely. |
 
 ---
 
