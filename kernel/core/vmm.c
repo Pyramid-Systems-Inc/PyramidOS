@@ -1,12 +1,11 @@
 #include "vmm.h"
 #include "pmm.h"
 #include "string.h"
+#include "terminal.h"
+#include "debug.h"
 
 // Keep page tables/directories in identity-mapped low memory so the kernel can memset()/edit them after paging is enabled.
 #define VMM_LOWMEM_LIMIT (4u * 1024u * 1024u)
-
-// External print for debugging
-extern void term_print(const char *str, uint8_t color);
 
 // The Kernel's Page Directory (Physical Address)
 static uint32_t *page_directory = 0;
@@ -28,9 +27,7 @@ static uint32_t *vmm_get_page_table(uint32_t vaddr, int create)
         uint32_t *new_table = (uint32_t *)pmm_alloc_page_low(VMM_LOWMEM_LIMIT);
         if (!new_table)
         {
-            term_print("PANIC: VMM - Cannot alloc Page Table (lowmem)!\n", 0x0C);
-            while (1)
-                ;
+            panic("VMM: cannot alloc page table (lowmem)");
         }
         memset(new_table, 0, PAGE_SIZE);
 
@@ -45,8 +42,17 @@ static uint32_t *vmm_get_page_table(uint32_t vaddr, int create)
 // Map a Virtual Address to a Physical Address
 void vmm_map(uint32_t vaddr, uint32_t paddr)
 {
+    if ((vaddr & (PAGE_SIZE - 1u)) != 0u)
+        panic("VMM: vmm_map vaddr not page-aligned");
+
+    if ((paddr & (PAGE_SIZE - 1u)) != 0u)
+        panic("VMM: vmm_map paddr not page-aligned");
+
     uint32_t *table = vmm_get_page_table(vaddr, 1);
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
+    if (!table)
+        panic("VMM: vmm_get_page_table returned NULL");
+
+    uint32_t pt_index = (vaddr >> 12) & 0x3FFu;
 
     table[pt_index] = paddr | PTE_PRESENT | PTE_READ_WRITE;
 
@@ -71,9 +77,7 @@ void vmm_init(void)
     page_directory = (uint32_t *)pmm_alloc_page_low(VMM_LOWMEM_LIMIT);
     if (!page_directory)
     {
-        term_print("PANIC: VMM - Cannot alloc Page Directory!\n", 0x0C);
-        while (1)
-            ;
+        panic("VMM: cannot alloc page directory (lowmem)");
     }
 
     // Clear it (Mark all PDEs as Not Present)
@@ -85,19 +89,17 @@ void vmm_init(void)
     uint32_t *first_page_table = (uint32_t *)pmm_alloc_page_low(VMM_LOWMEM_LIMIT);
     if (!first_page_table)
     {
-        term_print("PANIC: VMM - Cannot alloc Page Table!\n", 0x0C);
-        while (1)
-            ;
+        panic("VMM: cannot alloc first page table (lowmem)");
     }
 
     // 3. Identity Map the first 4MB
     // Virtual Addr 0x00000000 -> Physical Addr 0x00000000
     // Virtual Addr 0x00001000 -> Physical Addr 0x00001000
     // ...
-    for (int i = 0; i < 1024; i++)
+    for (uint32_t i = 0; i < 1024u; i++)
     {
         // Address = Index * 4096
-        uint32_t phys_addr = i * 4096;
+        uint32_t phys_addr = i * 4096u;
 
         // Entry = Address | Present | ReadWrite
         first_page_table[i] = phys_addr | PTE_PRESENT | PTE_READ_WRITE;

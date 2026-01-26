@@ -13,8 +13,11 @@ void heap_init(void)
 
     while (current_addr < end_addr)
     {
-        vmm_alloc_page(current_addr);
-        current_addr += 4096;
+        if (!vmm_alloc_page(current_addr))
+        {
+            panic("HEAP: vmm_alloc_page failed during heap_init()");
+        }
+        current_addr += 4096u;
     }
 
     // 2. Initialize the first massive free block
@@ -28,10 +31,22 @@ void heap_init(void)
 
 void *kmalloc(size_t size)
 {
-    // 0. Alignment (4 bytes)
-    if (size % 4 != 0)
+    if (!start_header)
     {
-        size += 4 - (size % 4);
+        panic("HEAP: kmalloc called before heap_init()");
+    }
+
+    if (size == 0u)
+        return NULL;
+
+    /* Refuse obviously impossible requests for the current fixed heap. */
+    if (size > (HEAP_INITIAL_SIZE - sizeof(HeapHeader)))
+        return NULL;
+
+    // 0. Alignment (4 bytes)
+    if ((size % 4u) != 0u)
+    {
+        size += 4u - (size % 4u);
     }
 
     // 1. Iterate list
@@ -50,9 +65,15 @@ void *kmalloc(size_t size)
 
             // 2. Split block if large enough
             // We need enough space for the new header + at least 4 bytes of data
-            if (current->size > size + sizeof(HeapHeader) + 4)
+            if (current->size > size + sizeof(HeapHeader) + 4u)
             {
-                HeapHeader *new_block = (HeapHeader *)((uint32_t)current + sizeof(HeapHeader) + size);
+                HeapHeader *new_block = (HeapHeader *)((uint32_t)current + (uint32_t)sizeof(HeapHeader) + (uint32_t)size);
+
+                uint32_t heap_end = (uint32_t)(HEAP_START_ADDR + HEAP_INITIAL_SIZE);
+                if ((uint32_t)new_block >= heap_end)
+                {
+                    panic("HEAP: split block out of bounds");
+                }
 
                 new_block->size = current->size - size - sizeof(HeapHeader);
                 new_block->is_free = 1;
@@ -86,6 +107,11 @@ void kfree(void *ptr)
     if (!ptr)
         return;
 
+    if (!start_header)
+    {
+        panic("HEAP: kfree called before heap_init()");
+    }
+
     // 1. Get Header
     HeapHeader *header = (HeapHeader *)((uint32_t)ptr - sizeof(HeapHeader));
 
@@ -93,6 +119,11 @@ void kfree(void *ptr)
     if (header->magic != HEAP_MAGIC)
     {
         panic("Heap Corruption Detected during Free!");
+    }
+
+    if (header->is_free)
+    {
+        panic("HEAP: Double free detected");
     }
 
     // 3. Mark Free

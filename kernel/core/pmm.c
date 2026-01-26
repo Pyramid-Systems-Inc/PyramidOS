@@ -1,5 +1,7 @@
 #include "pmm.h"
 #include "string.h"
+#include "debug.h"
+#include "terminal.h"
 
 // Pointer to the bitmap in physical memory
 static uint8_t *bitmap = (uint8_t *)PMM_BITMAP_BASE;
@@ -15,11 +17,21 @@ static uint32_t last_free_index_low = 0;
 #define PMM_WORD_BITS 32u
 #define PMM_WORD_FULL 0xFFFFFFFFu
 
+static void pmm_panic_u32(const char *msg, uint32_t value)
+{
+    term_print("\n[PMM PANIC] ", TERM_COLOR_LIGHT_RED);
+    term_print(msg, TERM_COLOR_LIGHT_RED);
+    term_print(" (", TERM_COLOR_LIGHT_RED);
+    term_print_hex(value, TERM_COLOR_YELLOW);
+    term_print(")\n", TERM_COLOR_LIGHT_RED);
+    panic("PMM fatal error");
+}
+
 // Helper: Set a bit (Mark used)
 static void pmm_set(uint32_t frame)
 {
     if (frame >= total_blocks)
-        return;
+        pmm_panic_u32("pmm_set: frame out of range", frame);
 
     uint32_t idx = frame / 8;
     uint32_t off = frame % 8;
@@ -35,23 +47,25 @@ static void pmm_set(uint32_t frame)
 static void pmm_unset(uint32_t frame)
 {
     if (frame >= total_blocks)
-        return;
+        pmm_panic_u32("pmm_unset: frame out of range", frame);
 
     uint32_t idx = frame / 8;
     uint32_t off = frame % 8;
     if (bitmap[idx] & (1u << off))
     {
         bitmap[idx] &= ~(1u << off);
+        if (used_blocks == 0u)
+            pmm_panic_u32("pmm_unset: used_blocks underflow", frame);
         used_blocks--;
     }
 }
 
 // Helper: Test a bit (Check if used)
-static uint8_t __attribute__((unused)) pmm_test(uint32_t frame)
+static uint8_t pmm_test(uint32_t frame)
 {
-    uint32_t idx = frame / 8;
-    uint32_t off = frame % 8;
-    return (bitmap[idx] & (1 << off));
+    uint32_t idx = frame / 8u;
+    uint32_t off = frame % 8u;
+    return (uint8_t)(bitmap[idx] & (uint8_t)(1u << off));
 }
 
 // Read a 32-bit word from the bitmap safely. Bytes beyond bitmap_size are treated as 0xFF (used).
@@ -255,8 +269,23 @@ void *pmm_alloc_page_low(uint32_t max_addr)
 
 void pmm_free_page(void *p)
 {
+    if (!p)
+        return;
+
     uint32_t addr = (uint32_t)p;
+
+    if ((addr % PMM_PAGE_SIZE) != 0u)
+        pmm_panic_u32("pmm_free_page: unaligned address", addr);
+
     uint32_t frame = addr / PMM_PAGE_SIZE;
+
+    if (frame >= total_blocks)
+        pmm_panic_u32("pmm_free_page: address out of range", addr);
+
+    /* Double-free / invalid free detection. */
+    if (!pmm_test(frame))
+        pmm_panic_u32("pmm_free_page: double free or corrupt frame", frame);
+
     pmm_unset(frame);
 
     // If we freed a block lower than the cursor, move the cursor back so we can fill gaps.
