@@ -7,26 +7,41 @@ static uint32_t total_blocks = 0;
 static uint32_t used_blocks = 0;
 static uint32_t bitmap_size = 0;
 
-// Optimization Cache: Last free frame index (Optimization)
+// Next-Fit cursors (frame indices)
 static uint32_t last_free_index = 0;
+static uint32_t last_free_index_low = 0;
+
+// Bitmap scanning constants
+#define PMM_WORD_BITS 32u
+#define PMM_WORD_FULL 0xFFFFFFFFu
 
 // Helper: Set a bit (Mark used)
 static void pmm_set(uint32_t frame)
 {
+    if (frame >= total_blocks)
+        return;
+
     uint32_t idx = frame / 8;
     uint32_t off = frame % 8;
-    bitmap[idx] |= (1 << off);
-    used_blocks++;
+
+    if (!(bitmap[idx] & (1u << off)))
+    {
+        bitmap[idx] |= (1u << off);
+        used_blocks++;
+    }
 }
 
 // Helper: Clear a bit (Mark free)
 static void pmm_unset(uint32_t frame)
 {
+    if (frame >= total_blocks)
+        return;
+
     uint32_t idx = frame / 8;
     uint32_t off = frame % 8;
-    if (bitmap[idx] & (1 << off))
+    if (bitmap[idx] & (1u << off))
     {
-        bitmap[idx] &= ~(1 << off);
+        bitmap[idx] &= ~(1u << off);
         used_blocks--;
     }
 }
@@ -39,46 +54,105 @@ static uint8_t __attribute__((unused)) pmm_test(uint32_t frame)
     return (bitmap[idx] & (1 << off));
 }
 
-// Optimized Finder
-static int32_t pmm_first_free()
+// Read a 32-bit word from the bitmap safely. Bytes beyond bitmap_size are treated as 0xFF (used).
+static uint32_t pmm_bitmap_word(uint32_t word_index)
 {
-    // 1. Start searching from the last known free position
-    for (uint32_t i = last_free_index; i < total_blocks; i++)
+    uint32_t byte_index = word_index * 4u;
+    uint32_t word = PMM_WORD_FULL;
+
+    uint8_t *word_bytes = (uint8_t *)&word;
+    for (uint32_t i = 0; i < 4u; i++)
     {
-        // Check 32 blocks (4 bytes) at once for speed?
-        // For now, keep it byte-aligned for simplicity
-        if (bitmap[i / 8] != 0xFF)
+        if ((byte_index + i) < bitmap_size)
         {
-            for (int j = 0; j < 8; j++)
-            {
-                int bit = 1 << j;
-                if (!(bitmap[i / 8] & bit))
-                {
-                    // Found it. Return the exact frame index.
-                    return (i / 8) * 8 + j;
-                }
-            }
+            word_bytes[i] = bitmap[byte_index + i];
         }
     }
 
-    // 2. If we reached the end, wrap around and search from 0 to last_free_index
-    // (This handles cases where we freed memory earlier in the space)
-    for (uint32_t i = 0; i < last_free_index; i++)
+    return word;
+}
+
+static int32_t pmm_find_first_set_bit(uint32_t value)
+{
+    for (uint32_t bit = 0; bit < PMM_WORD_BITS; bit++)
     {
-        if (bitmap[i / 8] != 0xFF)
+        if (value & (1u << bit))
+            return (int32_t)bit;
+    }
+    return -1;
+}
+
+// Find a free frame in [start_frame, end_frame)
+static int32_t pmm_find_free_in_range(uint32_t start_frame, uint32_t end_frame)
+{
+    if (start_frame >= end_frame)
+        return -1;
+
+    uint32_t start_word = start_frame / PMM_WORD_BITS;
+    uint32_t end_word = (end_frame - 1u) / PMM_WORD_BITS;
+
+    for (uint32_t word_index = start_word; word_index <= end_word; word_index++)
+    {
+        uint32_t word = pmm_bitmap_word(word_index);
+        uint32_t mask = PMM_WORD_FULL;
+
+        if (word_index == start_word)
         {
-            for (int j = 0; j < 8; j++)
+            uint32_t start_bit = start_frame % PMM_WORD_BITS;
+            if (start_bit != 0u)
             {
-                int bit = 1 << j;
-                if (!(bitmap[i / 8] & bit))
-                {
-                    return (i / 8) * 8 + j;
-                }
+                mask &= (PMM_WORD_FULL << start_bit);
             }
+        }
+
+        if (word_index == end_word)
+        {
+            uint32_t end_bit = (end_frame - 1u) % PMM_WORD_BITS;
+            if (end_bit != (PMM_WORD_BITS - 1u))
+            {
+                mask &= ((1u << (end_bit + 1u)) - 1u);
+            }
+        }
+
+        uint32_t candidates = (~word) & mask;
+        if (candidates != 0u)
+        {
+            int32_t bit = pmm_find_first_set_bit(candidates);
+            if (bit >= 0)
+                return (int32_t)(word_index * PMM_WORD_BITS + (uint32_t)bit);
         }
     }
 
-    return -1; // Truly OOM
+    return -1;
+}
+
+static int32_t pmm_first_free_from(uint32_t *cursor, uint32_t end_frame)
+{
+    if (*cursor >= end_frame)
+        *cursor = 0;
+
+    int32_t frame = pmm_find_free_in_range(*cursor, end_frame);
+    if (frame >= 0)
+        return frame;
+
+    return pmm_find_free_in_range(0, *cursor);
+}
+
+// Next-Fit (word-scanned) finder
+static int32_t pmm_first_free(void)
+{
+    if (used_blocks >= total_blocks)
+        return -1;
+
+    return pmm_first_free_from(&last_free_index, total_blocks);
+}
+
+static int32_t pmm_first_free_low(uint32_t max_frame)
+{
+    if (used_blocks >= total_blocks)
+        return -1;
+
+    return pmm_first_free_from(&last_free_index_low, max_frame);
 }
 
 void pmm_init(BootInfo *boot_info)
@@ -98,8 +172,11 @@ void pmm_init(BootInfo *boot_info)
     }
 
     // 2. Initialize Bitmap
-    total_blocks = highest_addr / PMM_PAGE_SIZE;
-    bitmap_size = total_blocks / 8;
+    total_blocks = (uint32_t)((highest_addr + (PMM_PAGE_SIZE - 1)) / PMM_PAGE_SIZE);
+    bitmap_size = (total_blocks + 7) / 8;
+
+    last_free_index = 0;
+    last_free_index_low = 0;
 
     // Default: Mark everything as USED (1)
     memset(bitmap, 0xFF, bitmap_size);
@@ -136,12 +213,43 @@ void *pmm_alloc_page(void)
     if (frame == -1)
         return 0;
 
-    pmm_set(frame);
+    pmm_set((uint32_t)frame);
 
-    // OPTIMIZATION: Next time, start searching from here
-    last_free_index = frame + 1;
+    // Next-Fit: next scan begins after this frame
+    last_free_index = (uint32_t)frame + 1u;
+    if (last_free_index >= total_blocks)
+    {
+        last_free_index = 0;
+    }
 
-    uint32_t addr = frame * PMM_PAGE_SIZE;
+    uint32_t addr = (uint32_t)frame * PMM_PAGE_SIZE;
+    return (void *)addr;
+}
+
+void *pmm_alloc_page_low(uint32_t max_addr)
+{
+    uint32_t max_frame = max_addr / PMM_PAGE_SIZE;
+
+    if (max_frame == 0u)
+        return 0;
+
+    if (max_frame > total_blocks)
+        max_frame = total_blocks;
+
+    int32_t frame = pmm_first_free_low(max_frame);
+    if (frame == -1)
+        return 0;
+
+    pmm_set((uint32_t)frame);
+
+    // Next-Fit: next scan begins after this frame
+    last_free_index_low = (uint32_t)frame + 1u;
+    if (last_free_index_low >= max_frame)
+    {
+        last_free_index_low = 0;
+    }
+
+    uint32_t addr = (uint32_t)frame * PMM_PAGE_SIZE;
     return (void *)addr;
 }
 
@@ -151,37 +259,50 @@ void pmm_free_page(void *p)
     uint32_t frame = addr / PMM_PAGE_SIZE;
     pmm_unset(frame);
 
-    // OPTIMIZATION: If we freed a block lower than our cache,
-    // reset the cache so we fill gaps (fragmentation reduction)
+    // If we freed a block lower than the cursor, move the cursor back so we can fill gaps.
     if (frame < last_free_index)
     {
         last_free_index = frame;
+    }
+    if (frame < last_free_index_low)
+    {
+        last_free_index_low = frame;
     }
 }
 
 void pmm_mark_region_used(uint64_t base, uint64_t length)
 {
-    uint32_t align = base / PMM_PAGE_SIZE;
-    uint32_t blocks = length / PMM_PAGE_SIZE;
+    if (length == 0)
+        return;
 
-    // Handle partial pages (if length isn't multiple of 4096, ensure we cover it)
-    if (length % PMM_PAGE_SIZE)
-        blocks++;
+    // Page-round the range: [base, base+length) -> [start_frame, end_frame)
+    uint64_t start_frame = base / PMM_PAGE_SIZE;
+    uint64_t end_frame = (base + length + (PMM_PAGE_SIZE - 1)) / PMM_PAGE_SIZE;
 
-    for (uint32_t i = 0; i < blocks; i++)
+    if (end_frame > (uint64_t)total_blocks)
+        end_frame = (uint64_t)total_blocks;
+
+    for (uint64_t frame = start_frame; frame < end_frame; frame++)
     {
-        pmm_set(align + i);
+        pmm_set((uint32_t)frame);
     }
 }
 
 void pmm_mark_region_free(uint64_t base, uint64_t length)
 {
-    uint32_t align = base / PMM_PAGE_SIZE;
-    uint32_t blocks = length / PMM_PAGE_SIZE;
+    if (length == 0)
+        return;
 
-    for (uint32_t i = 0; i < blocks; i++)
+    // Page-round the range: [base, base+length) -> [start_frame, end_frame)
+    uint64_t start_frame = base / PMM_PAGE_SIZE;
+    uint64_t end_frame = (base + length + (PMM_PAGE_SIZE - 1)) / PMM_PAGE_SIZE;
+
+    if (end_frame > (uint64_t)total_blocks)
+        end_frame = (uint64_t)total_blocks;
+
+    for (uint64_t frame = start_frame; frame < end_frame; frame++)
     {
-        pmm_unset(align + i);
+        pmm_unset((uint32_t)frame);
     }
 }
 

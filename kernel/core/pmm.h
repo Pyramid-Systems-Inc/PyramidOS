@@ -13,6 +13,7 @@
 
 void pmm_init(BootInfo *boot_info);
 void *pmm_alloc_page(void);
+void *pmm_alloc_page_low(uint32_t max_addr);
 void pmm_free_page(void *p);
 void pmm_mark_region_used(uint64_t base, uint64_t length);
 void pmm_mark_region_free(uint64_t base, uint64_t length);

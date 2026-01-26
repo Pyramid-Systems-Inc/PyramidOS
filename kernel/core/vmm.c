@@ -2,6 +2,9 @@
 #include "pmm.h"
 #include "string.h"
 
+// Keep page tables/directories in identity-mapped low memory so the kernel can memset()/edit them after paging is enabled.
+#define VMM_LOWMEM_LIMIT (4u * 1024u * 1024u)
+
 // External print for debugging
 extern void term_print(const char *str, uint8_t color);
 
@@ -21,8 +24,14 @@ static uint32_t *vmm_get_page_table(uint32_t vaddr, int create)
 
     if (create)
     {
-        // Create new Page Table
-        uint32_t *new_table = (uint32_t *)pmm_alloc_page();
+        // Create new Page Table (must be in identity-mapped memory)
+        uint32_t *new_table = (uint32_t *)pmm_alloc_page_low(VMM_LOWMEM_LIMIT);
+        if (!new_table)
+        {
+            term_print("PANIC: VMM - Cannot alloc Page Table (lowmem)!\n", 0x0C);
+            while (1)
+                ;
+        }
         memset(new_table, 0, PAGE_SIZE);
 
         // Add to Directory
@@ -58,8 +67,8 @@ int vmm_alloc_page(uint32_t vaddr)
 
 void vmm_init(void)
 {
-    // 1. Allocate a Page Directory (4KB)
-    page_directory = (uint32_t *)pmm_alloc_page();
+    // 1. Allocate a Page Directory (4KB) in identity-mapped low memory
+    page_directory = (uint32_t *)pmm_alloc_page_low(VMM_LOWMEM_LIMIT);
     if (!page_directory)
     {
         term_print("PANIC: VMM - Cannot alloc Page Directory!\n", 0x0C);
@@ -73,7 +82,7 @@ void vmm_init(void)
     // 2. Create the FIRST Page Table (covers 0MB - 4MB)
     // We need this because the Kernel is sitting at 0x10000,
     // and VGA buffer is at 0xB8000.
-    uint32_t *first_page_table = (uint32_t *)pmm_alloc_page();
+    uint32_t *first_page_table = (uint32_t *)pmm_alloc_page_low(VMM_LOWMEM_LIMIT);
     if (!first_page_table)
     {
         term_print("PANIC: VMM - Cannot alloc Page Table!\n", 0x0C);

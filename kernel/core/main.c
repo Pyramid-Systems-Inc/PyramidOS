@@ -32,6 +32,65 @@ int cursor_y = 0;
 
 // --- Test Suites ---
 
+#define PMM_TEST_PAGES 512u
+static void *pmm_test_pages[PMM_TEST_PAGES];
+
+void test_pmm_nextfit(void) {
+    term_print("\n[TEST] PMM Next-Fit...\n", COLOR_WHITE);
+
+    uint32_t free_before = pmm_get_free_memory();
+    term_print("Free before: ", COLOR_WHITE);
+    term_print_hex(free_before, COLOR_WHITE);
+    term_print("\n", COLOR_WHITE);
+
+    for (uint32_t i = 0; i < PMM_TEST_PAGES; i++) {
+        pmm_test_pages[i] = 0;
+    }
+
+    // 1) Allocate a batch of pages
+    for (uint32_t i = 0; i < PMM_TEST_PAGES; i++) {
+        pmm_test_pages[i] = pmm_alloc_page();
+        if (!pmm_test_pages[i]) {
+            term_print("PMM test: FAIL (OOM during allocation)\n", COLOR_RED);
+            goto cleanup;
+        }
+    }
+
+    // 2) Free every other page (fragmentation pattern)
+    for (uint32_t i = 0; i < PMM_TEST_PAGES; i += 2u) {
+        pmm_free_page(pmm_test_pages[i]);
+        pmm_test_pages[i] = 0;
+    }
+
+    // 3) Allocate again into the gaps
+    for (uint32_t i = 0; i < PMM_TEST_PAGES; i += 2u) {
+        pmm_test_pages[i] = pmm_alloc_page();
+        if (!pmm_test_pages[i]) {
+            term_print("PMM test: FAIL (OOM during gap refill)\n", COLOR_RED);
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    for (uint32_t i = 0; i < PMM_TEST_PAGES; i++) {
+        if (pmm_test_pages[i]) {
+            pmm_free_page(pmm_test_pages[i]);
+            pmm_test_pages[i] = 0;
+        }
+    }
+
+    uint32_t free_after = pmm_get_free_memory();
+    term_print("Free after:  ", COLOR_WHITE);
+    term_print_hex(free_after, COLOR_WHITE);
+    term_print("\n", COLOR_WHITE);
+
+    if (free_after == free_before) {
+        term_print("PMM test: OK\n", COLOR_GREEN);
+    } else {
+        term_print("PMM test: WARN (free mismatch)\n", COLOR_RED);
+    }
+}
+
 void test_heap(void) {
     term_print("\n[TEST] Heap Allocation...\n", 0x0F);
 
@@ -185,7 +244,8 @@ void k_main(void) {
 
     // Core Init
     pmm_init((BootInfo*)BOOT_INFO_ADDRESS);
-    idt_init(); 
+    test_pmm_nextfit();
+    idt_init();
     pic_remap();
     vmm_init();
     
