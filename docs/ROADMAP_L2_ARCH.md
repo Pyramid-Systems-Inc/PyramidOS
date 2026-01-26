@@ -68,33 +68,56 @@ This document details the internal design of the kernel subsystems. It bridges t
   * IDENTIFY-based presence detection + master/slave probing to avoid phantom devices.
   * Exposed to the user via `diskread <lba>` in KShell and validated by the diagnostics ATA selftest.
 
+### 3.4 HAL Boundary Enforcement (Planned)
+
+* **Goal:** Keep the monolith structured and stable by preventing cross-layer coupling.
+* **Policy:**
+  * **Drivers** should depend on stable Core/HAL interfaces, not raw architecture details.
+  * **Arch** owns CPU tables/port I/O primitives; Core provides safe wrappers where needed.
+  * This boundary becomes critical as we introduce User Mode, syscalls, and a real VFS-backed userland.
+
 ---
 
 ## 4. 🔄 Process Management & Executable Format
 
 ### 4.1 Pyramid Executable Format (PXF)
 
-* **Concept:** A lightweight, custom binary format designed for fast loading and simple parsing, replacing complex ELF/PE structures.
-* **Header Structure:**
+* **Concept:** A lightweight, Pyramid-native executable container designed for fast parsing and sovereign evolution.
+* **Hard Constraint:** PXF must not resemble ELF/PE conventions (no “sections”, “program headers”, or legacy loader semantics). It should feel like a Pyramid invention.
+* **Design Direction (PXF Records):**
+  * PXF is a **record-based container**: a small fixed header followed by a table of typed records.
+  * Each record is a “Pyramid Region” (e.g., `CODE`, `DATA`, `BSS`, `IMPORTS`, `MANIFEST`, `SIGNATURE`).
+  * The loader walks records and maps them according to permissions and alignment.
+* **Proposed Structure:**
 
     ```c
+    // PXF header: fixed + tiny.
     struct PXF_Header {
-        uint32_t magic;       // 'PYRX' (0x58525950)
-        uint32_t version;     // Format version
-        uint32_t entry_point; // Virtual address of entry
-        uint32_t text_offset; // Offset to code section
-        uint32_t text_size;   // Size of code
-        uint32_t data_offset; // Offset to data section
-        uint32_t data_size;   // Size of data
-        uint32_t bss_size;    // Size of uninitialized data
+        uint32_t magic;         // 'PYRX' (0x58525950)
+        uint32_t version;       // Format version
+        uint32_t entry_point;   // Virtual address of entry
+        uint32_t record_off;    // Offset to record table
+        uint32_t record_count;  // Number of records
+        uint32_t flags;         // Global flags (signed, pie, etc)
+    };
+
+    // Record: typed regions (not ELF segments, not PE sections).
+    struct PXF_Record {
+        uint32_t type;        // FourCC-like tag: 'CODE','DATA','BSS ','IMPT',...
+        uint32_t perms;       // R/W/X bits (Pyramid-defined)
+        uint32_t vaddr;       // Virtual destination
+        uint32_t file_off;    // Payload offset (0 for BSS)
+        uint32_t file_size;   // Bytes in file
+        uint32_t mem_size;    // Bytes in memory (>= file_size)
+        uint32_t align;       // Required alignment
     };
     ```
 
 * **Loading Strategy:**
-    1. Validate Magic.
-    2. VMM allocates pages for Text, Data, and BSS.
-    3. Loader reads bytes from disk into allocated RAM.
-    4. Loader zeros out BSS.
+    1. Validate magic/version.
+    2. Validate record table bounds (no overflow).
+    3. For each record: VMM allocates/maps pages according to `vaddr`, `mem_size`, `align`, and `perms`.
+    4. Copy payload (if any) and zero any tail (`mem_size - file_size`).
     5. Jump to `entry_point` (Ring 3).
 
 ### 4.2 Process Control Block (PCB)
@@ -131,9 +154,16 @@ This document details the internal design of the kernel subsystems. It bridges t
 
 * **Design Goal:** A custom, journaled filesystem optimized for the kernel.
 * **Phase 1 (Current):** Read-only bring-up with superblock probing on a partition device (e.g., `disk0p1`) and a verification read path (`/py/superblock`).
-* **Structure:**
+* **Planned Performance & Integrity Roadmap (Later Phases):**
+  * **Extents (Early):** Move from block pointers to extents `(start_block, length)` to reduce metadata reads and accelerate sequential I/O.
+  * **Directory Indexing:** Add B+Tree or hash indexing for directory entries to avoid O(N) scans as directories grow.
+  * **Journaling Strategy:** Prefer **Copy-on-Write metadata + log** (snapshot-friendly, stable under crashes) over legacy full-data journaling.
+  * **Checksums (PyCRC):** Introduce a Pyramid-native checksum system (“PyCRC”) for metadata (and optionally data). Use a modern, fast checksum algorithm internally, but expose it as PyCRC in PyramidOS.
+  * **Superblock Redundancy:** Multiple superblock copies at fixed LBAs for recovery (with generation counters).
+  * **Performance Caches:** Inode cache + dentry cache + readahead strategy once multitasking and memory pressure management mature.
+* **Structure (Baseline):**
   * **Superblock:** FS Geometry and Magic.
-  * **Inode Table:** Metadata (Permissions, Size, Block Pointers).
+  * **Inode Table:** Metadata (Permissions, Size, Block Pointers or Extents).
   * **Block Bitmap:** Allocation tracking.
   * **Data Blocks:** Raw content.
 * *(Note: FAT32 support will be maintained for boot interoperability).*
@@ -145,8 +175,13 @@ This document details the internal design of the kernel subsystems. It bridges t
 ### 6.1 Pyramid Configuration Database (PyDB)
 
 * **Concept:** A custom, binary, hierarchical key-value store replacing text-based `.ini` files and the proprietary Windows Registry.
-* **Storage:** Memory-mapped binary tree.
-* **Node Structure:**
+* **Current Concept Model:** Memory-mapped binary tree.
+* **Planned Architecture (Later Phases):**
+  * **Write Path (Log-Structured):** Append new records to a transaction log, then update an index (or rebuild index on boot if needed).
+  * **Atomicity:** Explicit transaction begin/commit markers + checksum (PyCRC) to guarantee crash consistency.
+  * **Compaction:** Background merge/compaction to keep lookups fast and reduce fragmentation.
+  * **Access Model:** Namespaces + ACLs (kernel/user separation) once Ring 3 exists.
+* **Node Structure (Conceptual):**
 
     ```c
     struct PyDB_Node {

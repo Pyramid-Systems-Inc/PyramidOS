@@ -52,6 +52,7 @@
 | **Filesystem (VFS)** | 🚧 | VFS foundation: mount table + file descriptors + DevFS (`/dev`) exposure. |
 | **Partition Discovery (MBR)** | 🚧 | Register `disk0p1..disk0p4` block devices for filesystem mounting. |
 | **PyFS (Read-Only)** | 🚧 | Probe + mount PyFS on a partition device (e.g., `disk0p1`) before full RW+journaling. |
+| **HAL Boundary Enforcement** | 📅 | Formalize stable HAL boundaries so Drivers don’t depend on Arch specifics (port I/O, IRQ wiring, paging internals). |
 
 ---
 

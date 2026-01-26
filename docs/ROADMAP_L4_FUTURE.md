@@ -63,3 +63,17 @@ This document captures long-term visions, experimental features, and ecosystem g
   * "Branding Kits" allowing hardware vendors to skin the Bootloader and Desktop Shell without recompiling the kernel.
 * **The "Pyramid Store":**
   * A decentralized package manager for PXF binaries.
+
+## 7. 💾 Resilient Home Storage (PyPoolFS) — Union/Merge Pool (Much Later)
+
+* **Concept:** A Pyramid-native storage pool layer that presents multiple physical disks as one logical namespace, with *graceful degradation*.
+* **Core behavior:**
+  * Add Disk 2 / Disk 3 later to expand capacity; system merges available volumes into one view.
+  * If a disk is removed/unavailable, the filesystem still mounts and operates using remaining disks.
+  * Files that lived only on the missing disk become unavailable, but the system remains functional.
+* **Safety constraint (critical):**
+  * Avoid striping a single file across multiple disks unless redundancy/erasure coding exists; otherwise disk loss corrupts files.
+* **Optional durability modes (future):**
+  * Per-directory replication policy (e.g., mirror “system” data, single-copy “media” data).
+  * Background healing when a disk returns.
+* **Naming:** “PyPoolFS” / “PyMergeFS” (final naming TBD).

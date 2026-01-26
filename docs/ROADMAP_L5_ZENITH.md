@@ -25,6 +25,8 @@ This document outlines the creative, modern features that will differentiate Pyr
 * **Tag-Based Filesystem:**
   * Files don't live in *one* folder. They live in a database pool.
   * A document can exist in "Work," "2025," and "Urgent" simultaneously without duplication.
+* **Multi-Disk Union/Merge Pools (PyPoolFS):**
+  * A future storage layer that merges multiple disks into one namespace and keeps running when a disk disappears (graceful degradation).
 * **"Smart Views" (Virtual Folders):**
   * Instead of browsing directories, the user opens a "View."
   * *Example:* A view defined as "All Images modified in the last hour." The OS maintains this list in real-time.
