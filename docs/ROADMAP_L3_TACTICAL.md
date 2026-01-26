@@ -46,7 +46,14 @@
 
 ---
 
-## 6. ✅ Completed Tasks (Archive)
+## 6. 🔧 Driver Hardening Notes
+
+- [x] **Keyboard Buffer Policy:** When the ring buffer is full, the newest keypress is dropped (non-blocking overflow behavior).
+- [x] **RTC Robustness:** CMOS reads wait for update-in-progress to clear before sampling.
+
+---
+
+## 7. ✅ Completed Tasks (Archive)
 
 - [x] Keyboard Driver & KShell.
 - [x] Time/RTC.
