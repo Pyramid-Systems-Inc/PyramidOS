@@ -52,6 +52,7 @@ stage2_main:
     call ui_poll_boot_menu
     call ui_draw_boot_screen
     call ui_status_init_all
+    call ui_anim_intro
 
     ; 2. Enable A20 Line
     call enable_a20
@@ -149,6 +150,9 @@ stage2_main:
 
     ; 10. Enter Protected Mode
     call ui_status_pmode_ok
+
+    ; Give the user a brief moment to see the final state in Quiet mode.
+    call ui_anim_outro
 
     ; Restore cursor before leaving BIOS services behind.
     call ui_show_cursor
@@ -547,6 +551,21 @@ UI_ROW_HINT        equ 24
 UI_PROG_COL_BAR    equ 16
 UI_PROG_WIDTH      equ 50
 
+UI_ROW_SPINNER     equ UI_ROW_HINT
+UI_COL_SPINNER     equ 79
+
+; Animation pacing (Quiet mode only).
+UI_INTRO_STEPS       equ 20
+UI_INTRO_DELAY_CX    equ 0x0000
+UI_INTRO_DELAY_DX    equ 0xC350    ; 50,000us = 50ms (1s total)
+
+UI_PROGRESS_DELAY_CX equ 0x0000
+UI_PROGRESS_DELAY_DX equ 0x3A98    ; 15,000us = 15ms
+
+UI_OUTRO_STEPS       equ 10
+UI_OUTRO_DELAY_CX    equ 0x0000
+UI_OUTRO_DELAY_DX    equ 0x7530    ; 30,000us = 30ms (300ms total)
+
 ; Frame around the status panel
 UI_FRAME_TOP       equ 5
 UI_FRAME_BOTTOM    equ 12
@@ -567,6 +586,7 @@ ui_maybe_print_string:
 ui_init:
     push ax
     mov byte [ui_verbose], 0
+    mov byte [ui_spin_idx], 0
 
     ; Force VGA 80x25 text mode.
     mov ax, 0x0003
@@ -602,6 +622,124 @@ ui_show_cursor:
     int 0x10
     pop cx
     pop ax
+    ret
+
+; Function: ui_sleep_us
+; Sleep for a given duration using BIOS INT 15h, AH=86h.
+; Input: CX:DX = microseconds.
+; Preserves all general registers.
+ui_sleep_us:
+    pusha
+    mov si, cx
+    mov di, dx
+
+    mov ah, 0x86
+    int 0x15
+    jnc .done
+
+    ; Fallback: crude busy-wait if BIOS wait isn't supported.
+    mov bx, si              ; high
+    test bx, bx
+    jz .only_low
+.outer:
+    mov cx, di              ; low
+.inner:
+    loop .inner
+    dec bx
+    jnz .outer
+    jmp .done
+
+.only_low:
+    mov cx, di
+.inner2:
+    loop .inner2
+
+.done:
+    popa
+    ret
+
+; Function: ui_spinner_step
+; Update a small spinner in the bottom-right to show that Stage 2 is alive.
+ui_spinner_step:
+    pusha
+
+    mov al, [ui_spin_idx]
+    and al, 3
+    xor ah, ah
+    mov si, spinner_chars
+    add si, ax
+    mov al, [si]
+
+    mov dh, UI_ROW_SPINNER
+    mov dl, UI_COL_SPINNER
+    mov bl, UI_ATTR_DIM
+    call vga_putc_at
+
+    inc byte [ui_spin_idx]
+
+    popa
+    ret
+
+; Function: ui_anim_intro
+; Brief animation so the boot UI is visible even on fast boots.
+ui_anim_intro:
+    cmp byte [ui_verbose], 0
+    jne .done
+
+    pusha
+    mov cx, UI_INTRO_STEPS
+.loop:
+    call ui_spinner_step
+
+    push cx
+    mov cx, UI_INTRO_DELAY_CX
+    mov dx, UI_INTRO_DELAY_DX
+    call ui_sleep_us
+    pop cx
+
+    loop .loop
+    popa
+
+.done:
+    ret
+
+; Function: ui_anim_progress_tick
+; Small delay + spinner update per progress update (Quiet mode only).
+ui_anim_progress_tick:
+    cmp byte [ui_verbose], 0
+    jne .done
+
+    pusha
+    call ui_spinner_step
+    mov cx, UI_PROGRESS_DELAY_CX
+    mov dx, UI_PROGRESS_DELAY_DX
+    call ui_sleep_us
+    popa
+
+.done:
+    ret
+
+; Function: ui_anim_outro
+; Brief pause so the final OK/FAIL state is readable before jumping to the kernel.
+ui_anim_outro:
+    cmp byte [ui_verbose], 0
+    jne .done
+
+    pusha
+    mov cx, UI_OUTRO_STEPS
+.loop:
+    call ui_spinner_step
+
+    push cx
+    mov cx, UI_OUTRO_DELAY_CX
+    mov dx, UI_OUTRO_DELAY_DX
+    call ui_sleep_us
+    pop cx
+
+    loop .loop
+    popa
+
+.done:
     ret
 
 ; Function: ui_poll_boot_menu
@@ -1028,7 +1166,6 @@ ui_update_progress:
     mov cx, UI_PROG_WIDTH
     mul cx                  ; DX:AX = done*width
     mov cx, [kernel_sectors_total]
-    xor dx, dx
     div cx                  ; AX = filled
     mov si, ax              ; filled count
 
@@ -1037,7 +1174,6 @@ ui_update_progress:
     mov cx, 100
     mul cx
     mov cx, [kernel_sectors_total]
-    xor dx, dx
     div cx                  ; AX = percent (0..100)
     mov di, ax              ; percent
 
@@ -1107,6 +1243,8 @@ ui_update_progress:
     mov bl, UI_ATTR_LABEL
     call vga_print_u16_5_at
 
+    call ui_anim_progress_tick
+
 .done:
     pop es
     pop ds
@@ -1125,7 +1263,7 @@ vga_print_u16_5_at:
     push bp
 
     mov si, ax              ; value
-    mov bh, dh              ; row
+    mov bh, dh              ; row (preserve across vga_putc_at)
 
     ; DI = rightmost column (left + 4)
     xor di, di
@@ -1135,12 +1273,11 @@ vga_print_u16_5_at:
 
     mov bp, 0               ; emitted-nonzero flag
     mov cx, 5
-    mov bx, 10
 
 .u16_loop:
     mov ax, si
     xor dx, dx
-    div bx                  ; AX=quotient, DX=remainder
+    div word [dec_base]     ; AX=quotient, DX=remainder
     mov si, ax
 
     mov al, dl              ; digit (0..9) from remainder
@@ -1190,35 +1327,43 @@ vga_print_percent_at:
     push cx
     push dx
 
-    ; Hundreds
-    mov cx, 100
-    xor dx, dx
-    div cx                  ; AX=hundreds (0..1), DX=remainder
-    add al, '0'
-    cmp al, '0'
-    jne .hund_emit
+    cmp ax, 100
+    jne .lt100
+
+    mov al, '1'
+    call vga_putc_at
+    inc dl
+    mov al, '0'
+    call vga_putc_at
+    inc dl
+    mov al, '0'
+    call vga_putc_at
+    inc dl
+    mov al, '%'
+    call vga_putc_at
+    jmp .done
+
+.lt100:
+    mov cl, al              ; save percent (0..99) before clobbering AL
     mov al, ' '
-.hund_emit:
     call vga_putc_at
     inc dl
 
-    ; Tens
-    mov ax, dx
-    mov cx, 10
-    xor dx, dx
-    div cx                  ; AX=tens, DX=ones
+    ; Convert AL (0..99) into tens/ones: AH=tens, AL=ones.
+    mov al, cl
+    aam
+    mov cl, al              ; save ones
+
+    mov al, ah              ; tens
     add al, '0'
     cmp al, '0'
-    jne .ten_emit
-    ; If hundreds was space and tens is 0, print space.
-    ; This is a simple heuristic; acceptable for 0..99.
+    jne .tens_emit
     mov al, ' '
-.ten_emit:
+.tens_emit:
     call vga_putc_at
     inc dl
 
-    ; Ones
-    mov ax, dx
+    mov al, cl              ; ones
     add al, '0'
     call vga_putc_at
     inc dl
@@ -1226,6 +1371,7 @@ vga_print_percent_at:
     mov al, '%'
     call vga_putc_at
 
+.done:
     pop dx
     pop cx
     pop bx
@@ -1325,6 +1471,8 @@ kernel_sectors_total: dw 0
 
 ui_verbose:      db 0
 ui_prog_prev_filled: dw 0
+ui_spin_idx:    db 0
+dec_base:       dw 10
 
 e820_entry_count: dw 0
 tmp_lba:         dd 0
@@ -1373,6 +1521,7 @@ msg_menu_2:       db '2) Verbose (debug text output)', 0
 msg_logo_1:       db '   /\\    PyramidOS', 0
 msg_logo_2:       db '  /__\\   Sovereign Boot Sequence', 0
 msg_lbl_sectors:  db 'Sectors:', 0
+spinner_chars:    db 0x7C, 0x2F, 0x2D, 0x5C  ; | / - \
 
 ; Disk Address Packet
 align 4
