@@ -7,6 +7,27 @@
 
 ---
 
+## 0. 🇸🇦 Arabic-First Initiative (End-to-End)
+
+**Goal:** Ship Arabic-first UX from power-on (bootloader) to desktop. English remains available as an optional debug fallback.
+
+| Feature | Status | Description |
+| :--- | :---: | :--- |
+| **Arabic Boot Experience (Stage 2)** | 📅 | Arabic splash/menu/messages in graphics mode (Mode 13h now, VBE later); must stay within Stage 2 size constraints and keep a reliable fallback path. |
+| **Unicode Strategy (UTF-8 Everywhere)** | 📅 | Standardize on UTF-8 for kernel/userland/VFS; add safe UTF-8 primitives (decode/iterate/width). |
+| **Framebuffer Terminal (Arabic Text Stack)** | 📅 | Primary console becomes framebuffer-rendered text with Arabic shaping + RTL; VGA text mode becomes compat/debug only. |
+| **Arabic Shaping (v1)** | 📅 | Contextual forms + Lam-Alef; diacritics support staged. |
+| **Bidi (v1)** | 📅 | Start with Arabic-only RTL lines, then support mixed Arabic+Latin+numbers runs with sane cursor behavior. |
+| **Arabic Keyboard Layout** | 📅 | Scancode -> Unicode Arabic mapping, layout toggle, digit mode (Arabic-Indic vs Western). |
+| **Arabic KShell & Base Tools** | 📅 | Commands, help, and system messages Arabic-first; keep English aliases for development. |
+| **UTF-8 Filenames in VFS/PyFS** | 📅 | End-to-end UTF-8 path handling, directory entries, and a policy for normalization and sorting. |
+| **GUI RTL + Arabic Text** | 📅 | GUI toolkit supports RTL layout mirroring and shaped/bidi text rendering everywhere. |
+| **Baa + Takween Integration (Arabic-first DX)** | 📅 | Build PyramidOS with Baa/Takween and ship Arabic-first developer tooling and project schemas. |
+
+**Detailed plan:** `docs/ROADMAP_ARABIC_FIRST.md`
+
+---
+
 ## 1. 🛤️ Milestone 1: The Bootloader (PyramidBL)
 
 **Goal:** Reliably load the kernel payload into memory and transition the CPU to a usable state.
