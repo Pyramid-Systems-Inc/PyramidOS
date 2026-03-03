@@ -32,9 +32,9 @@ load_physical_address:
 entry_physical_address:
     dd 0x00010000
 
-; 5. Checksum (CRC32 or Simple Sum)
+; 5. Checksum (Simple Sum32)
+; A simple integrity check: sum of all bytes in kernel.bin, modulo 2^32.
 ; Passed by Makefile via -D KERNEL_CHECKSUM=...
-; Currently Stage 2 ignores this (Phase 1), so 0 is safe.
 kernel_checksum:
 %ifdef KERNEL_CHECKSUM
     dd KERNEL_CHECKSUM

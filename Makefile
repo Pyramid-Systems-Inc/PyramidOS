@@ -151,8 +151,12 @@ $(KERNEL_BIN): $(OBJECTS)
 # 5. Generate Header (Calculates size dynamically)
 $(KERNEL_HDR): $(KERNEL_BIN)
 	@SIZE=$$(stat -c%s $(KERNEL_BIN) 2>/dev/null || stat -f%z $(KERNEL_BIN)); \
+	CHECKSUM=$$(python3 -c "import sys; print(sum(open(sys.argv[1],'rb').read()) & 0xffffffff)" "$(KERNEL_BIN)" 2>/dev/null || \
+	          python  -c "import sys; print(sum(open(sys.argv[1],'rb').read()) & 0xffffffff)" "$(KERNEL_BIN)" 2>/dev/null || \
+	          echo 0); \
 	echo "Kernel Size: $$SIZE bytes"; \
-	$(ASM) -f bin $(ARCH_DIR)/header.asm -o $@ -D KERNEL_SIZE=$$SIZE
+	echo "Kernel Checksum: $$CHECKSUM"; \
+	$(ASM) -f bin $(ARCH_DIR)/header.asm -o $@ -D KERNEL_SIZE=$$SIZE -D KERNEL_CHECKSUM=$$CHECKSUM
 
 # 6. Create Final Kernel Image (Header + Binary)
 $(KERNEL_IMG): $(KERNEL_HDR) $(KERNEL_BIN)

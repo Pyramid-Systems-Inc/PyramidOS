@@ -110,6 +110,10 @@ stage2_main:
     mov eax, [es:8]         ; Load 32-bit size
     mov [kernel_size], eax
 
+    ; Offset 20 in header = checksum (sum32 of kernel.bin bytes)
+    mov edx, [es:20]
+    mov [kernel_checksum_expected], edx
+
     ; Calculate sector count: (Size + 511) / 512
     add eax, 511
     shr eax, 9              ; Divide by 512
@@ -142,8 +146,8 @@ stage2_main:
     mov si, msg_kernel_ok
     call ui_maybe_print_string
 
-    ; 8. Verify Checksum (Simplified for now: Skip to ensure boot first)
-    ; TODO: Implement Checksum verification
+    ; 8. Verify kernel checksum (halts on mismatch).
+    call ui_checksum_verify
 
     ; 9. Prepare BootInfo Structure
     call setup_boot_info
@@ -549,6 +553,7 @@ UI_ROW_STATUS_E820 equ 7
 UI_ROW_STATUS_HDR  equ 8
 UI_ROW_STATUS_KERN equ 9
 UI_ROW_STATUS_PM   equ 10
+UI_ROW_STATUS_CSUM equ 11
 
 UI_ROW_PROGRESS    equ 22
 UI_ROW_PROGRESS_INFO equ 23
@@ -1225,6 +1230,13 @@ ui_status_init_all:
     call vga_write_string_at
     call ui_status_pmode_pending
 
+    mov si, msg_lbl_checksum
+    mov dh, UI_ROW_STATUS_CSUM
+    mov dl, UI_COL_LABEL
+    mov bl, UI_ATTR_LABEL
+    call vga_write_string_at
+    call ui_status_csum_pending
+
     pop si
     pop dx
     pop bx
@@ -1293,6 +1305,27 @@ ui_status_pmode_ok:
     mov dh, UI_ROW_STATUS_PM
     jmp ui_status_write_ok
 
+ui_status_csum_pending:
+    mov si, msg_stat_pending
+    mov dh, UI_ROW_STATUS_CSUM
+    jmp ui_status_write_dim
+ui_status_csum_loading:
+    mov si, msg_stat_chk
+    mov dh, UI_ROW_STATUS_CSUM
+    jmp ui_status_write_dim
+ui_status_csum_ok:
+    mov si, msg_stat_ok
+    mov dh, UI_ROW_STATUS_CSUM
+    jmp ui_status_write_ok
+ui_status_csum_fail:
+    mov si, msg_stat_fail
+    mov dh, UI_ROW_STATUS_CSUM
+    jmp ui_status_write_fail
+ui_status_csum_skip:
+    mov si, msg_stat_skip
+    mov dh, UI_ROW_STATUS_CSUM
+    jmp ui_status_write_skip
+
 ui_status_write_dim:
     mov dl, UI_COL_STATUS
     mov bl, UI_ATTR_DIM
@@ -1306,6 +1339,11 @@ ui_status_write_ok:
 ui_status_write_fail:
     mov dl, UI_COL_STATUS
     mov bl, UI_ATTR_FAIL
+    call vga_write_string_at
+    ret
+ui_status_write_skip:
+    mov dl, UI_COL_STATUS
+    mov bl, UI_ATTR_DIM
     call vga_write_string_at
     ret
 
@@ -1496,6 +1534,185 @@ ui_update_progress:
     pop es
     pop ds
     popad
+    ret
+
+; Verify the loaded kernel against the expected header checksum.
+; Uses a simple sum32(bytes) modulo 2^32. If the header checksum is 0, verification is skipped.
+ui_checksum_verify:
+    pushad
+
+    mov eax, [kernel_checksum_expected]
+    test eax, eax
+    jz .skip
+
+    call ui_checksum_show_verifying
+
+    call kernel_checksum_sum32
+    mov [kernel_checksum_actual], eax
+
+    cmp eax, [kernel_checksum_expected]
+    jne .fail
+
+    call ui_checksum_show_ok
+    popad
+    ret
+
+.skip:
+    call ui_checksum_show_skip
+    popad
+    ret
+
+.fail:
+    call ui_checksum_show_fail
+
+    ; Keep the FAIL state visible briefly on the splash before switching to text.
+    cmp byte [ui_gfx], 0
+    je .fatal
+    mov cx, 0x0007
+    mov dx, 0xA120          ; 500ms
+    call ui_sleep_us
+
+.fatal:
+    call ui_fatal_prepare
+    mov si, msg_checksum_mismatch
+    call print_string
+
+    mov si, msg_checksum_expected
+    call print_string
+    mov eax, [kernel_checksum_expected]
+    call print_hex32
+
+    mov si, msg_checksum_actual_str
+    call print_string
+    mov eax, [kernel_checksum_actual]
+    call print_hex32
+
+    mov si, msg_checksum_halt
+    call print_string
+
+    cli
+    hlt
+
+; Show checksum status in the active UI mode.
+ui_checksum_show_verifying:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    mov si, msg_gfx_checksum_ver
+    mov dh, 19
+    mov dl, 4
+    mov bl, GFX_DIM_COLOR
+    call bios_write_string_gfx
+    ret
+
+.text:
+    call ui_status_csum_loading
+    ret
+
+ui_checksum_show_ok:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    mov si, msg_gfx_checksum_ok
+    mov dh, 19
+    mov dl, 4
+    mov bl, GFX_BAR_FILL_COLOR
+    call bios_write_string_gfx
+    ret
+
+.text:
+    call ui_status_csum_ok
+    ret
+
+ui_checksum_show_fail:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    mov si, msg_gfx_checksum_fail
+    mov dh, 19
+    mov dl, 4
+    mov bl, 0x0C            ; red
+    call bios_write_string_gfx
+    ret
+
+.text:
+    call ui_status_csum_fail
+    ret
+
+ui_checksum_show_skip:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    mov si, msg_gfx_checksum_skip
+    mov dh, 19
+    mov dl, 4
+    mov bl, GFX_DIM_COLOR
+    call bios_write_string_gfx
+    ret
+
+.text:
+    call ui_status_csum_skip
+    ret
+
+; Compute sum32(bytes) modulo 2^32 over the loaded kernel body (kernel_size bytes at 0x10000).
+; Output: EAX = checksum.
+kernel_checksum_sum32:
+    pushad
+    push es
+
+    xor eax, eax
+    mov edx, [kernel_size]
+
+    mov bx, KERNEL_LOAD_SEG
+    mov es, bx
+    xor di, di
+    xor ecx, ecx
+
+.loop:
+    test edx, edx
+    jz .done
+
+    mov cl, [es:di]
+    add eax, ecx
+
+    inc di
+    jnz .no_wrap
+    mov bx, es
+    add bx, 0x1000
+    mov es, bx
+.no_wrap:
+    dec edx
+    jmp .loop
+
+.done:
+    mov [tmp_dword], eax
+    pop es
+    popad
+    mov eax, [tmp_dword]
+    ret
+
+; Print EAX as 8 hex digits (no prefix).
+print_hex32:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+
+    mov [tmp_dword], eax
+    mov si, tmp_dword+3
+    mov cx, 4
+.hex_loop:
+    mov al, [si]
+    call print_hex
+    dec si
+    loop .hex_loop
+
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 
 ; Print AX as a 5-char right-aligned decimal number at DH:DL, using attribute BL.
@@ -2098,6 +2315,8 @@ ui_gfx_update_progress:
 ; ------------------------------------------------------------------------------
 boot_drive:      db 0
 kernel_size:     dd 0
+kernel_checksum_expected: dd 0
+kernel_checksum_actual:   dd 0
 kernel_sectors:  dw 0
 kernel_sectors_total: dw 0
 
@@ -2108,6 +2327,7 @@ ui_gfx:         db 0
 dec_base:       dw 10
 gfx_pitch:      dw GFX_WIDTH
 ui_wait_buf:    db '30', 0
+tmp_dword:      dd 0
 
 e820_entry_count: dw 0
 tmp_lba:         dd 0
@@ -2142,12 +2362,15 @@ msg_lbl_e820:     db 'Memory Map (E820)', 0
 msg_lbl_hdr:      db 'Kernel Header', 0
 msg_lbl_kernel:   db 'Kernel Load', 0
 msg_lbl_pm:       db 'Protected Mode', 0
+msg_lbl_checksum: db 'Kernel Checksum', 0
 msg_lbl_progress: db 'Loading:', 0
 
 msg_stat_pending: db '[ .... ]', 0
-msg_stat_loading: db '[LOAD ]', 0
-msg_stat_ok:      db '[ OK  ]', 0
-msg_stat_fail:    db '[FAIL ]', 0
+msg_stat_loading: db '[ LOAD ]', 0
+msg_stat_ok:      db '[ OK   ]', 0
+msg_stat_fail:    db '[ FAIL ]', 0
+msg_stat_chk:     db '[ CHK  ]', 0
+msg_stat_skip:    db '[ SKIP ]', 0
 
 msg_menu_title:   db 'Boot Options', 0
 msg_menu_1:       db '1) Splash (Mode 13h, Quiet)', 0
@@ -2162,6 +2385,15 @@ msg_gfx_subtitle: db 'Sovereign Boot Sequence', 0
 msg_gfx_autoboot: db 'Auto boot in:', 0
 msg_gfx_enter:    db 'Press ENTER to boot now.', 0
 msg_gfx_sec:      db 's', 0
+msg_gfx_checksum_ver:  db 'Checksum: VERIFY', 0
+msg_gfx_checksum_ok:   db 'Checksum: PASS', 0
+msg_gfx_checksum_fail: db 'Checksum: FAIL', 0
+msg_gfx_checksum_skip: db 'Checksum: SKIP', 0
+
+msg_checksum_mismatch:    db 'Kernel checksum mismatch.', 13, 10, 0
+msg_checksum_expected:    db 'Expected: 0x', 0
+msg_checksum_actual_str:  db 13, 10, 'Actual:   0x', 0
+msg_checksum_halt:        db 13, 10, 'Halting.', 0
 
 ; Disk Address Packet
 align 4
