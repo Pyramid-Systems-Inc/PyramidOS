@@ -61,7 +61,7 @@ stage2_main:
     je .a20_success
     call ui_status_a20_fail
     mov si, msg_a20_fail
-    call ui_maybe_print_string
+    call ui_fatal_print_string
     jmp .halt_cpu
 
 .a20_success:
@@ -154,8 +154,11 @@ stage2_main:
     ; Give the user a brief moment to see the final state in Quiet mode.
     call ui_anim_outro
 
-    ; Restore cursor before leaving BIOS services behind.
-    call ui_show_cursor
+    ; Tier 2: Keep the splash visible (ENTER skips).
+    call ui_wait_enter_or_timeout
+
+    ; Ensure the kernel starts in VGA text mode (even if we showed a graphics splash).
+    call ui_prepare_for_kernel
 
     cli                     ; Disable interrupts for good
 
@@ -171,7 +174,7 @@ stage2_main:
 .bad_magic:
     call ui_status_hdr_fail
     mov si, msg_bad_magic
-    call ui_maybe_print_string
+    call ui_fatal_print_string
     jmp .halt_cpu
 
 .halt_cpu:
@@ -364,10 +367,13 @@ read_sectors_universal:
 
 .io_error:
     call ui_status_kernel_fail
-    mov si, msg_disk_err
-    call ui_maybe_print_string
-    ; Print error code in AH
+    ; Force a visible fatal message even in Quiet/Splash mode.
     mov al, ah
+    push ax
+    call ui_fatal_prepare
+    mov si, msg_disk_err
+    call print_string
+    pop ax
     call print_hex
     cli
     hlt
@@ -566,6 +572,38 @@ UI_OUTRO_STEPS       equ 10
 UI_OUTRO_DELAY_CX    equ 0x0000
 UI_OUTRO_DELAY_DX    equ 0x7530    ; 30,000us = 30ms (300ms total)
 
+; Tier 2 autoboot pause (Splash mode only)
+UI_WAIT_SECS            equ 30
+UI_WAIT_TICKS_PER_SEC   equ 20
+UI_WAIT_TICK_DELAY_CX   equ 0x0000
+UI_WAIT_TICK_DELAY_DX   equ 0xC350    ; 50,000us = 50ms
+
+; Tier 2 (Mode 13h splash) constants
+GFX_SEG              equ 0xA000
+GFX_WIDTH            equ 320
+GFX_HEIGHT           equ 200
+
+GFX_BG_COLOR         equ 0x01      ; blue
+GFX_LOGO_COLOR       equ 0x0E      ; yellow
+GFX_TEXT_COLOR       equ 0x0F      ; white
+GFX_DIM_COLOR        equ 0x08      ; dark gray
+GFX_BAR_BORDER_COLOR equ 0x0F      ; white
+GFX_BAR_BG_COLOR     equ 0x08      ; dark gray
+GFX_BAR_FILL_COLOR   equ 0x0A      ; light green
+GFX_SPINNER_COLOR    equ 0x0F      ; white
+
+GFX_LOGO_Y_START     equ 52
+GFX_LOGO_X_CENTER    equ 160
+GFX_LOGO_HEIGHT      equ 28
+
+GFX_BAR_X            equ 60
+GFX_BAR_Y            equ 172
+GFX_BAR_W            equ 200
+GFX_BAR_H            equ 8
+
+GFX_SPIN_X           equ 316
+GFX_SPIN_Y           equ 160
+
 ; Frame around the status panel
 UI_FRAME_TOP       equ 5
 UI_FRAME_BOTTOM    equ 12
@@ -587,6 +625,7 @@ ui_init:
     push ax
     mov byte [ui_verbose], 0
     mov byte [ui_spin_idx], 0
+    mov byte [ui_gfx], 1
 
     ; Force VGA 80x25 text mode.
     mov ax, 0x0003
@@ -622,6 +661,38 @@ ui_show_cursor:
     int 0x10
     pop cx
     pop ax
+    ret
+
+; Function: ui_prepare_for_kernel
+; Ensure kernel-visible text mode is active, then restore a normal cursor.
+ui_prepare_for_kernel:
+    push ax
+    cmp byte [ui_gfx], 0
+    je .cursor
+
+    mov ax, 0x0003
+    int 0x10
+
+.cursor:
+    call ui_show_cursor
+    pop ax
+    ret
+
+; Function: ui_fatal_prepare
+; Force text mode so fatal errors are always visible, then restore cursor.
+ui_fatal_prepare:
+    push ax
+    mov ax, 0x0003
+    int 0x10
+    call ui_show_cursor
+    pop ax
+    ret
+
+; Function: ui_fatal_print_string
+; Input: SI = pointer to null-terminated string (printed unconditionally).
+ui_fatal_print_string:
+    call ui_fatal_prepare
+    call print_string
     ret
 
 ; Function: ui_sleep_us
@@ -663,6 +734,56 @@ ui_sleep_us:
 ui_spinner_step:
     pusha
 
+    cmp byte [ui_gfx], 0
+    je .text
+
+    ; Mode 13h spinner: rotate a single pixel around a small 4-point cross.
+    mov al, [ui_spin_idx]
+    and al, 3
+
+    ; Clear all spinner points to background color.
+    mov bl, GFX_BG_COLOR
+    mov ax, GFX_SPIN_X
+    mov dx, GFX_SPIN_Y - 2
+    call gfx_putpixel
+    mov ax, GFX_SPIN_X + 2
+    mov dx, GFX_SPIN_Y
+    call gfx_putpixel
+    mov ax, GFX_SPIN_X
+    mov dx, GFX_SPIN_Y + 2
+    call gfx_putpixel
+    mov ax, GFX_SPIN_X - 2
+    mov dx, GFX_SPIN_Y
+    call gfx_putpixel
+
+    ; Draw active point.
+    mov bl, GFX_SPINNER_COLOR
+    cmp al, 0
+    je .spin_up
+    cmp al, 1
+    je .spin_right
+    cmp al, 2
+    je .spin_down
+    ; else left
+    mov ax, GFX_SPIN_X - 2
+    mov dx, GFX_SPIN_Y
+    jmp .spin_draw
+.spin_up:
+    mov ax, GFX_SPIN_X
+    mov dx, GFX_SPIN_Y - 2
+    jmp .spin_draw
+.spin_right:
+    mov ax, GFX_SPIN_X + 2
+    mov dx, GFX_SPIN_Y
+    jmp .spin_draw
+.spin_down:
+    mov ax, GFX_SPIN_X
+    mov dx, GFX_SPIN_Y + 2
+.spin_draw:
+    call gfx_putpixel
+    jmp .inc
+
+.text:
     mov al, [ui_spin_idx]
     and al, 3
     xor ah, ah
@@ -675,6 +796,9 @@ ui_spinner_step:
     mov bl, UI_ATTR_DIM
     call vga_putc_at
 
+    ; fallthrough
+
+.inc:
     inc byte [ui_spin_idx]
 
     popa
@@ -742,6 +866,101 @@ ui_anim_outro:
 .done:
     ret
 
+; Function: ui_kbd_flush
+; Drain any pending BIOS keystrokes.
+ui_kbd_flush:
+    push ax
+.loop:
+    mov ah, 0x01
+    int 0x16
+    jz .done
+    mov ah, 0x00
+    int 0x16
+    jmp .loop
+.done:
+    pop ax
+    ret
+
+; Function: ui_wait_enter_or_timeout
+; Splash-only: wait up to UI_WAIT_SECS seconds; ENTER skips the wait.
+ui_wait_enter_or_timeout:
+    cmp byte [ui_gfx], 0
+    je .done
+
+    pusha
+
+    ; Bottom hint lines (40x25 text cells in Mode 13h).
+    mov si, msg_gfx_autoboot
+    mov dh, 23
+    mov dl, 4
+    mov bl, GFX_DIM_COLOR
+    call bios_write_string_gfx
+
+    mov si, msg_gfx_enter
+    mov dh, 24
+    mov dl, 4
+    mov bl, GFX_DIM_COLOR
+    call bios_write_string_gfx
+
+    ; Print "s" once after the countdown digits.
+    mov si, msg_gfx_sec
+    mov dh, 23
+    mov dl, 20
+    mov bl, GFX_DIM_COLOR
+    call bios_write_string_gfx
+
+    mov bp, UI_WAIT_SECS
+.sec_loop:
+    ; Update countdown digits (two chars) at row 23, col 18.
+    mov ax, bp
+    aam                     ; AH=tens, AL=ones (base 10)
+    add ah, '0'
+    add al, '0'
+    cmp ah, '0'
+    jne .tens_ok
+    mov ah, ' '
+.tens_ok:
+    mov [ui_wait_buf], ah
+    mov [ui_wait_buf+1], al
+
+    mov si, ui_wait_buf
+    mov dh, 23
+    mov dl, 18
+    mov bl, GFX_TEXT_COLOR
+    call bios_write_string_gfx
+
+    mov di, UI_WAIT_TICKS_PER_SEC
+.tick_loop:
+    ; ENTER skips.
+    mov ah, 0x01
+    int 0x16
+    jz .no_key
+    mov ah, 0x00
+    int 0x16
+    cmp al, 13
+    je .skip
+
+.no_key:
+    call ui_spinner_step
+    mov cx, UI_WAIT_TICK_DELAY_CX
+    mov dx, UI_WAIT_TICK_DELAY_DX
+    call ui_sleep_us
+    dec di
+    jnz .tick_loop
+
+    dec bp
+    jnz .sec_loop
+    jmp .out
+
+.skip:
+    call ui_kbd_flush
+
+.out:
+    popa
+
+.done:
+    ret
+
 ; Function: ui_poll_boot_menu
 ; Offer a simple F8 toggle for verbose output.
 ui_poll_boot_menu:
@@ -785,7 +1004,7 @@ ui_poll_boot_menu:
     ret
 
 ; Function: ui_show_boot_menu
-; Lets the user choose Quiet or Verbose.
+; Lets the user choose Splash (quiet) or Verbose (text).
 ui_show_boot_menu:
     push ax
     push bx
@@ -824,9 +1043,11 @@ ui_show_boot_menu:
 
 .quiet:
     mov byte [ui_verbose], 0
+    mov byte [ui_gfx], 1
     jmp .out
 .verbose:
     mov byte [ui_verbose], 1
+    mov byte [ui_gfx], 0
 .out:
     pop si
     pop dx
@@ -836,6 +1057,13 @@ ui_show_boot_menu:
 
 ; Function: ui_draw_boot_screen
 ui_draw_boot_screen:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    call ui_gfx_draw_boot_screen
+    ret
+
+.text:
     push ax
     push bx
     push dx
@@ -954,6 +1182,9 @@ ui_draw_frame:
 
 ; Function: ui_status_init_all
 ui_status_init_all:
+    cmp byte [ui_gfx], 0
+    jne .done
+
     push bx
     push dx
     push si
@@ -997,6 +1228,7 @@ ui_status_init_all:
     pop si
     pop dx
     pop bx
+.done:
     ret
 
 ; Status helpers (write at fixed column).
@@ -1079,6 +1311,13 @@ ui_status_write_fail:
 
 ; Progress bar init
 ui_progress_init:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    call ui_gfx_progress_init
+    ret
+
+.text:
     push ax
     push bx
     push cx
@@ -1149,6 +1388,14 @@ ui_progress_init:
 ; Progress update
 ; Input: CX = remaining sectors
 ui_update_progress:
+    cmp byte [ui_gfx], 0
+    je .text
+
+    call ui_gfx_update_progress
+    call ui_anim_progress_tick
+    ret
+
+.text:
     pushad
     push ds
     push es
@@ -1462,6 +1709,391 @@ vga_putc_at:
     ret
 
 ; ------------------------------------------------------------------------------
+; Tier 2 Bootloader UX Helpers (Mode 13h, 320x200x256)
+; ------------------------------------------------------------------------------
+
+; Set VGA graphics mode 13h (320x200x256).
+gfx_set_mode_13:
+    push ax
+    mov ax, 0x0013
+    int 0x10
+    pop ax
+    ret
+
+; Clear entire graphics framebuffer to BL color.
+gfx_clear:
+    push ax
+    push cx
+    push di
+    push es
+
+    mov ax, GFX_SEG
+    mov es, ax
+    xor di, di
+
+    mov al, bl
+    mov cx, GFX_WIDTH * GFX_HEIGHT
+    rep stosb
+
+    pop es
+    pop di
+    pop cx
+    pop ax
+    ret
+
+; Draw a horizontal line: (AX=x, DX=y, CX=len), color BL.
+gfx_hline:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push es
+
+    mov si, ax              ; x
+
+    mov ax, GFX_SEG
+    mov es, ax
+
+    mov ax, dx              ; y
+    mul word [gfx_pitch]    ; DX:AX = y*320
+    add ax, si              ; + x
+    mov di, ax
+
+    mov al, bl
+    rep stosb
+
+    pop es
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Plot a single pixel at (AX=x, DX=y) with color BL.
+gfx_putpixel:
+    push ax
+    push bx
+    push dx
+    push si
+    push di
+    push es
+
+    mov si, ax              ; x
+
+    mov ax, GFX_SEG
+    mov es, ax
+
+    mov ax, dx              ; y
+    mul word [gfx_pitch]
+    add ax, si
+    mov di, ax
+
+    mov al, bl
+    mov [es:di], al
+
+    pop es
+    pop di
+    pop si
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+; Draw a vertical line: (AX=x, DX=y, CX=len), color BL.
+gfx_vline:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push es
+
+    mov si, ax              ; x
+
+    mov ax, GFX_SEG
+    mov es, ax
+
+    mov ax, dx              ; y
+    mul word [gfx_pitch]
+    add ax, si
+    mov di, ax
+
+    mov al, bl
+.loop:
+    mov [es:di], al
+    add di, GFX_WIDTH
+    loop .loop
+
+    pop es
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Compute CX = strlen(DS:SI) (null-terminated).
+bios_strlen:
+    push ax
+    push si
+    xor cx, cx
+.loop:
+    lodsb
+    test al, al
+    jz .done
+    inc cx
+    jmp .loop
+.done:
+    pop si
+    pop ax
+    ret
+
+; Write DS:SI string at text-cell (DH=row, DL=col) in graphics mode (uses BIOS font).
+; BL = foreground color.
+bios_write_string_gfx:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push bp
+    push es
+
+    call bios_strlen
+
+    mov ax, ds
+    mov es, ax
+    mov bp, si
+
+    mov ah, 0x13
+    mov al, 0x00            ; don't move cursor
+    mov bh, 0x00
+    int 0x10
+
+    pop es
+    pop bp
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Draw a simple pyramid logo (filled triangle).
+gfx_draw_pyramid_logo:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+
+    mov bp, GFX_LOGO_HEIGHT
+    xor si, si              ; row index
+
+.row:
+    ; len = row*4 + 1
+    mov ax, si
+    shl ax, 2
+    inc ax
+    mov bx, ax              ; len
+
+    ; x = center - (len/2)
+    mov di, ax
+    shr di, 1               ; half
+    mov ax, GFX_LOGO_X_CENTER
+    sub ax, di              ; x
+
+    ; y = start + row
+    mov dx, GFX_LOGO_Y_START
+    add dx, si
+
+    mov cx, bx              ; len
+    mov bl, GFX_LOGO_COLOR
+    call gfx_hline
+
+    inc si
+    dec bp
+    jnz .row
+
+    pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Draw the Mode 13h splash screen.
+ui_gfx_draw_boot_screen:
+    push ax
+    push bx
+    push dx
+    push si
+
+    call gfx_set_mode_13
+
+    mov bl, GFX_BG_COLOR
+    call gfx_clear
+
+    ; Title/subtitle text cells: 40x25 (8x8 font in 320x200).
+    mov si, msg_gfx_title
+    mov dh, 2
+    mov dl, 14
+    mov bl, GFX_TEXT_COLOR
+    call bios_write_string_gfx
+
+    mov si, msg_gfx_subtitle
+    mov dh, 3
+    mov dl, 6
+    mov bl, GFX_DIM_COLOR
+    call bios_write_string_gfx
+
+    call gfx_draw_pyramid_logo
+
+    ; Progress bar shell (fill updates happen during kernel load).
+    call ui_gfx_progress_init
+
+    pop si
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+; Initialize the graphics-mode progress bar (outline + empty fill).
+ui_gfx_progress_init:
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov word [ui_prog_prev_filled], 0
+
+    ; Border box
+    mov ax, GFX_BAR_X - 1
+    mov dx, GFX_BAR_Y - 1
+    mov cx, GFX_BAR_W + 2
+    mov bl, GFX_BAR_BORDER_COLOR
+    call gfx_hline
+
+    mov ax, GFX_BAR_X - 1
+    mov dx, GFX_BAR_Y + GFX_BAR_H
+    mov cx, GFX_BAR_W + 2
+    mov bl, GFX_BAR_BORDER_COLOR
+    call gfx_hline
+
+    mov ax, GFX_BAR_X - 1
+    mov dx, GFX_BAR_Y - 1
+    mov cx, GFX_BAR_H + 2
+    mov bl, GFX_BAR_BORDER_COLOR
+    call gfx_vline
+
+    mov ax, GFX_BAR_X + GFX_BAR_W
+    mov dx, GFX_BAR_Y - 1
+    mov cx, GFX_BAR_H + 2
+    mov bl, GFX_BAR_BORDER_COLOR
+    call gfx_vline
+
+    ; Empty bar fill
+    xor bx, bx
+.bg_row:
+    mov ax, GFX_BAR_X
+    mov dx, GFX_BAR_Y
+    add dx, bx
+    mov cx, GFX_BAR_W
+    mov bl, GFX_BAR_BG_COLOR
+    call gfx_hline
+
+    inc bx
+    cmp bx, GFX_BAR_H
+    jb .bg_row
+
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Update graphics progress bar. Input: CX = remaining sectors.
+ui_gfx_update_progress:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+
+    mov ax, [kernel_sectors_total]
+    test ax, ax
+    jz .done
+
+    ; done = total - remaining
+    mov bx, ax
+    sub bx, cx
+
+    ; filled = (done * GFX_BAR_W) / total
+    mov ax, bx
+    mov cx, GFX_BAR_W
+    mul cx                  ; DX:AX = done*width
+    mov cx, [kernel_sectors_total]
+    div cx                  ; AX = filled (0..GFX_BAR_W)
+    mov si, ax              ; filled
+
+    mov ax, [ui_prog_prev_filled]
+    cmp si, ax
+    je .done
+
+    ja .fill_delta
+
+    ; new < prev: clear from new .. prev-1
+    mov bp, ax
+    sub bp, si              ; delta = prev - new
+    mov di, si              ; start = new
+    mov bl, GFX_BAR_BG_COLOR
+    jmp .draw_delta
+
+.fill_delta:
+    mov bp, si
+    sub bp, ax              ; delta = new - prev
+    mov di, ax              ; start = prev
+    mov bl, GFX_BAR_FILL_COLOR
+
+.draw_delta:
+    xor bx, bx              ; row
+.row_loop:
+    mov ax, GFX_BAR_X
+    add ax, di
+    mov dx, GFX_BAR_Y
+    add dx, bx
+    mov cx, bp
+    call gfx_hline
+
+    inc bx
+    cmp bx, GFX_BAR_H
+    jb .row_loop
+
+    mov [ui_prog_prev_filled], si
+
+.done:
+    pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; ------------------------------------------------------------------------------
 ; Data
 ; ------------------------------------------------------------------------------
 boot_drive:      db 0
@@ -1472,7 +2104,10 @@ kernel_sectors_total: dw 0
 ui_verbose:      db 0
 ui_prog_prev_filled: dw 0
 ui_spin_idx:    db 0
+ui_gfx:         db 0
 dec_base:       dw 10
+gfx_pitch:      dw GFX_WIDTH
+ui_wait_buf:    db '30', 0
 
 e820_entry_count: dw 0
 tmp_lba:         dd 0
@@ -1500,7 +2135,7 @@ msg_disk_err:    db 'Disk Err:', 0
 ; UI strings (Tier 1)
 msg_ui_title:     db 'PyramidOS Bootloader (Stage 2)', 0
 msg_ui_rule:      db '--------------------------------------------------------------------------------', 0
-msg_hint_f8:      db 'Press F8 for boot options (Verbose/Quiet).', 0
+msg_hint_f8:      db 'Press F8 for boot options (Splash/Verbose).', 0
 
 msg_lbl_a20:      db 'A20 Line', 0
 msg_lbl_e820:     db 'Memory Map (E820)', 0
@@ -1515,13 +2150,18 @@ msg_stat_ok:      db '[ OK  ]', 0
 msg_stat_fail:    db '[FAIL ]', 0
 
 msg_menu_title:   db 'Boot Options', 0
-msg_menu_1:       db '1) Normal (Quiet UI)', 0
-msg_menu_2:       db '2) Verbose (debug text output)', 0
+msg_menu_1:       db '1) Splash (Mode 13h, Quiet)', 0
+msg_menu_2:       db '2) Verbose (Text debug output)', 0
 
 msg_logo_1:       db '   /\\    PyramidOS', 0
 msg_logo_2:       db '  /__\\   Sovereign Boot Sequence', 0
 msg_lbl_sectors:  db 'Sectors:', 0
-spinner_chars:    db 0x7C, 0x2F, 0x2D, 0x5C  ; | / - \
+spinner_chars:    db 0x7C, 0x2F, 0x2D, 0x5C  ; | / - \\ (spinner)
+msg_gfx_title:    db 'PyramidOS', 0
+msg_gfx_subtitle: db 'Sovereign Boot Sequence', 0
+msg_gfx_autoboot: db 'Auto boot in:', 0
+msg_gfx_enter:    db 'Press ENTER to boot now.', 0
+msg_gfx_sec:      db 's', 0
 
 ; Disk Address Packet
 align 4
