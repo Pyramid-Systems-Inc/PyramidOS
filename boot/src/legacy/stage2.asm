@@ -13,6 +13,10 @@
 bits 16
 org 0x8000                  ; Loaded here by Stage 1
 
+%ifndef STAGE2_SECTOR_COUNT
+    STAGE2_SECTOR_COUNT equ 12
+%endif
+
 ; ------------------------------------------------------------------------------
 ; Constants
 ; ------------------------------------------------------------------------------
@@ -587,6 +591,8 @@ UI_WAIT_TICK_DELAY_DX   equ 0xC350    ; 50,000us = 50ms
 GFX_SEG              equ 0xA000
 GFX_WIDTH            equ 320
 GFX_HEIGHT           equ 200
+GFX_FONT_W           equ 8
+GFX_FONT_H           equ 16
 
 GFX_BG_COLOR         equ 0x01      ; blue
 GFX_LOGO_COLOR       equ 0x0E      ; yellow
@@ -602,12 +608,19 @@ GFX_LOGO_X_CENTER    equ 160
 GFX_LOGO_HEIGHT      equ 28
 
 GFX_BAR_X            equ 60
-GFX_BAR_Y            equ 172
+GFX_BAR_Y            equ 148
 GFX_BAR_W            equ 200
 GFX_BAR_H            equ 8
 
 GFX_SPIN_X           equ 316
-GFX_SPIN_Y           equ 160
+GFX_SPIN_Y           equ 132
+
+UI_GFX_RIGHT_X       equ 312
+UI_GFX_Y_TITLE       equ 8
+UI_GFX_Y_SUBTITLE    equ 24
+UI_GFX_Y_CHECKSUM    equ 112
+UI_GFX_Y_COUNTDOWN   equ 160
+UI_GFX_Y_HINT        equ 176
 
 ; Frame around the status panel
 UI_FRAME_TOP       equ 5
@@ -625,19 +638,15 @@ ui_maybe_print_string:
     ret
 
 ; Function: ui_init
-; Sets text mode, clears screen, sets defaults.
+; Sets defaults and enters splash mode immediately (Arabic-first UX).
 ui_init:
     push ax
     mov byte [ui_verbose], 0
     mov byte [ui_spin_idx], 0
     mov byte [ui_gfx], 1
-
-    ; Force VGA 80x25 text mode.
-    mov ax, 0x0003
-    int 0x10
-
-    ; Hide the blinking cursor during the splash UI.
-    call ui_hide_cursor
+    call gfx_set_mode_13
+    mov bl, GFX_BG_COLOR
+    call gfx_clear
 
     pop ax
     ret
@@ -684,20 +693,24 @@ ui_prepare_for_kernel:
     ret
 
 ; Function: ui_fatal_prepare
-; Force text mode so fatal errors are always visible, then restore cursor.
+; Force graphics mode so fatal errors can show Arabic text reliably.
 ui_fatal_prepare:
     push ax
-    mov ax, 0x0003
-    int 0x10
-    call ui_show_cursor
+    call gfx_set_mode_13
+    mov bl, GFX_BG_COLOR
+    call gfx_clear
+    mov byte [ui_gfx], 1
     pop ax
     ret
 
-; Function: ui_fatal_print_string
-; Input: SI = pointer to null-terminated string (printed unconditionally).
-ui_fatal_print_string:
+; Function: ui_fatal_print_u16
+; Input: SI = pointer to 0-terminated u16 string (printed unconditionally).
+ui_fatal_print_u16:
     call ui_fatal_prepare
-    call print_string
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 80
+    mov bl, 0x0C            ; red
+    call gfx_write_u16_rtl
     ret
 
 ; Function: ui_sleep_us
@@ -894,45 +907,56 @@ ui_wait_enter_or_timeout:
 
     pusha
 
-    ; Bottom hint lines (40x25 text cells in Mode 13h).
-    mov si, msg_gfx_autoboot
-    mov dh, 23
-    mov dl, 4
-    mov bl, GFX_DIM_COLOR
-    call bios_write_string_gfx
-
-    mov si, msg_gfx_enter
-    mov dh, 24
-    mov dl, 4
-    mov bl, GFX_DIM_COLOR
-    call bios_write_string_gfx
-
-    ; Print "s" once after the countdown digits.
-    mov si, msg_gfx_sec
-    mov dh, 23
-    mov dl, 20
-    mov bl, GFX_DIM_COLOR
-    call bios_write_string_gfx
-
     mov bp, UI_WAIT_SECS
 .sec_loop:
-    ; Update countdown digits (two chars) at row 23, col 18.
+    ; Update countdown digits in-place (ui_countdown_digit_* are u16 code units).
     mov ax, bp
     aam                     ; AH=tens, AL=ones (base 10)
-    add ah, '0'
-    add al, '0'
-    cmp ah, '0'
-    jne .tens_ok
-    mov ah, ' '
-.tens_ok:
-    mov [ui_wait_buf], ah
-    mov [ui_wait_buf+1], al
+    mov dl, al              ; ones
+    mov dh, ah              ; tens
 
-    mov si, ui_wait_buf
-    mov dh, 23
-    mov dl, 18
-    mov bl, GFX_TEXT_COLOR
-    call bios_write_string_gfx
+    cmp dh, 0
+    jne .tens_nonzero
+    mov word [ui_countdown_digit_tens], 0x0020
+    jmp .tens_done
+.tens_nonzero:
+    mov al, dh
+    xor ah, ah
+    add ax, 0x0030
+    mov [ui_countdown_digit_tens], ax
+.tens_done:
+
+    mov al, dl
+    xor ah, ah
+    add ax, 0x0030
+    mov [ui_countdown_digit_ones], ax
+
+    ; Clear + redraw countdown line and the ENTER hint.
+    mov ax, 0
+    mov dx, UI_GFX_Y_COUNTDOWN
+    mov cx, GFX_WIDTH
+    mov si, GFX_FONT_H
+    mov bl, GFX_BG_COLOR
+    call gfx_fill_rect
+
+    mov si, ui_countdown_buf
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_COUNTDOWN
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
+
+    mov ax, 0
+    mov dx, UI_GFX_Y_HINT
+    mov cx, GFX_WIDTH
+    mov si, GFX_FONT_H
+    mov bl, GFX_BG_COLOR
+    call gfx_fill_rect
+
+    mov si, msg_ar_enter_hint
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_HINT
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
 
     mov di, UI_WAIT_TICKS_PER_SEC
 .tick_loop:
@@ -967,20 +991,11 @@ ui_wait_enter_or_timeout:
     ret
 
 ; Function: ui_poll_boot_menu
-; Offer a simple F8 toggle for verbose output.
+; Offer a simple F8 menu (Arabic) before boot.
 ui_poll_boot_menu:
     push ax
-    push bx
     push cx
     push dx
-    push si
-
-    ; Hint line (minimal, overwritten by ui_draw_boot_screen later).
-    mov si, msg_hint_f8
-    mov dh, UI_ROW_HINT
-    mov dl, 0
-    mov bl, UI_ATTR_DIM
-    call vga_write_string_at
 
     ; Poll for a bounded loop (no timer dependency).
     mov cx, 0x4000
@@ -1001,41 +1016,47 @@ ui_poll_boot_menu:
     loop .poll
 
 .done:
-    pop si
     pop dx
     pop cx
-    pop bx
     pop ax
     ret
 
 ; Function: ui_show_boot_menu
-; Lets the user choose Splash (quiet) or Verbose (text).
+; Lets the user choose Normal (animated) or Fast (no animations).
 ui_show_boot_menu:
     push ax
     push bx
+    push cx
     push dx
     push si
 
-    mov bl, UI_ATTR_BASE
-    call vga_clear
+    call ui_fatal_prepare
 
-    mov si, msg_menu_title
-    mov dh, 3
-    mov dl, 2
-    mov bl, UI_ATTR_TITLE
-    call vga_write_string_at
+    ; Title
+    mov si, msg_ar_menu_title
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 40
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_u16_rtl
 
-    mov si, msg_menu_1
-    mov dh, 6
-    mov dl, 2
-    mov bl, UI_ATTR_LABEL
-    call vga_write_string_at
+    ; Options
+    mov si, msg_ar_menu_1
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 72
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
 
-    mov si, msg_menu_2
-    mov dh, 7
-    mov dl, 2
-    mov bl, UI_ATTR_LABEL
-    call vga_write_string_at
+    mov si, msg_ar_menu_2
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 88
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
+
+    mov si, msg_ar_menu_prompt
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 120
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
 
 .wait_key:
     mov ah, 0x00
@@ -1052,10 +1073,11 @@ ui_show_boot_menu:
     jmp .out
 .verbose:
     mov byte [ui_verbose], 1
-    mov byte [ui_gfx], 0
+    mov byte [ui_gfx], 1
 .out:
     pop si
     pop dx
+    pop cx
     pop bx
     pop ax
     ret
@@ -1598,11 +1620,18 @@ ui_checksum_show_verifying:
     cmp byte [ui_gfx], 0
     je .text
 
-    mov si, msg_gfx_checksum_ver
-    mov dh, 19
-    mov dl, 4
+    mov ax, 0
+    mov dx, UI_GFX_Y_CHECKSUM
+    mov cx, GFX_WIDTH
+    mov si, GFX_FONT_H
+    mov bl, GFX_BG_COLOR
+    call gfx_fill_rect
+
+    mov si, msg_ar_checksum_ver
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_CHECKSUM
     mov bl, GFX_DIM_COLOR
-    call bios_write_string_gfx
+    call gfx_write_u16_rtl
     ret
 
 .text:
@@ -1613,11 +1642,18 @@ ui_checksum_show_ok:
     cmp byte [ui_gfx], 0
     je .text
 
-    mov si, msg_gfx_checksum_ok
-    mov dh, 19
-    mov dl, 4
+    mov ax, 0
+    mov dx, UI_GFX_Y_CHECKSUM
+    mov cx, GFX_WIDTH
+    mov si, GFX_FONT_H
+    mov bl, GFX_BG_COLOR
+    call gfx_fill_rect
+
+    mov si, msg_ar_checksum_ok
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_CHECKSUM
     mov bl, GFX_BAR_FILL_COLOR
-    call bios_write_string_gfx
+    call gfx_write_u16_rtl
     ret
 
 .text:
@@ -1628,11 +1664,18 @@ ui_checksum_show_fail:
     cmp byte [ui_gfx], 0
     je .text
 
-    mov si, msg_gfx_checksum_fail
-    mov dh, 19
-    mov dl, 4
+    mov ax, 0
+    mov dx, UI_GFX_Y_CHECKSUM
+    mov cx, GFX_WIDTH
+    mov si, GFX_FONT_H
+    mov bl, GFX_BG_COLOR
+    call gfx_fill_rect
+
+    mov si, msg_ar_checksum_fail
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_CHECKSUM
     mov bl, 0x0C            ; red
-    call bios_write_string_gfx
+    call gfx_write_u16_rtl
     ret
 
 .text:
@@ -1643,11 +1686,18 @@ ui_checksum_show_skip:
     cmp byte [ui_gfx], 0
     je .text
 
-    mov si, msg_gfx_checksum_skip
-    mov dh, 19
-    mov dl, 4
+    mov ax, 0
+    mov dx, UI_GFX_Y_CHECKSUM
+    mov cx, GFX_WIDTH
+    mov si, GFX_FONT_H
+    mov bl, GFX_BG_COLOR
+    call gfx_fill_rect
+
+    mov si, msg_ar_checksum_skip
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_CHECKSUM
     mov bl, GFX_DIM_COLOR
-    call bios_write_string_gfx
+    call gfx_write_u16_rtl
     ret
 
 .text:
@@ -2157,22 +2207,23 @@ ui_gfx_draw_boot_screen:
     push si
 
     call gfx_set_mode_13
+    mov byte [ui_gfx], 1
 
     mov bl, GFX_BG_COLOR
     call gfx_clear
 
-    ; Title/subtitle text cells: 40x25 (8x8 font in 320x200).
-    mov si, msg_gfx_title
-    mov dh, 2
-    mov dl, 14
+    ; Title/subtitle (Arabic-first).
+    mov si, msg_ar_title
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_TITLE
     mov bl, GFX_TEXT_COLOR
-    call bios_write_string_gfx
+    call gfx_write_u16_rtl
 
-    mov si, msg_gfx_subtitle
-    mov dh, 3
-    mov dl, 6
+    mov si, msg_ar_subtitle
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, UI_GFX_Y_SUBTITLE
     mov bl, GFX_DIM_COLOR
-    call bios_write_string_gfx
+    call gfx_write_u16_rtl
 
     call gfx_draw_pyramid_logo
 
