@@ -47,6 +47,10 @@ STAGE2_BIN = $(BUILD_DIR)/stage2.bin
 DISK_IMG   = $(BUILD_DIR)/pyramidos.img
 KERNEL_MAP = $(BUILD_DIR)/kernel.map
 
+# Stage 2 grew to include an Arabic-capable bitmap font + shaping tables.
+# Keep it well below the kernel placement at LBA 60.
+STAGE2_SECTORS ?= 32
+
 # --- Build Profile ---
 # BUILD=release (default) or BUILD=debug
 BUILD ?= release
@@ -112,10 +116,10 @@ $(BUILD_DIR)/%.o: %.asm | $(BUILD_DIR)
 
 # --- Special ASM rules for Bootloader ---
 $(STAGE1_BIN): $(BOOT_DIR)/stage1.asm | $(BUILD_DIR)
-	$(ASM) -f bin $< -o $@
+	$(ASM) -f bin -D STAGE2_SECTOR_COUNT=$(STAGE2_SECTORS) $< -o $@
 
 $(STAGE2_BIN): $(BOOT_DIR)/stage2.asm | $(BUILD_DIR)
-	$(ASM) -f bin $< -o $@
+	$(ASM) -f bin -I$(BOOT_DIR)/ -D STAGE2_SECTOR_COUNT=$(STAGE2_SECTORS) $< -o $@
 
 # --- Link Kernel ---
 # Note: entry.o MUST be first

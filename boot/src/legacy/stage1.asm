@@ -18,7 +18,7 @@ STAGE2_LOAD_SEGMENT equ 0x0800      ; Segment 0x0800 * 16 = 0x8000 Physical
 STAGE2_LOAD_OFFSET  equ 0x0000
 STAGE2_START_SECTOR equ 2           ; Stage 2 starts at Sector 2 (Sector 1 is MBR)
 %ifndef STAGE2_SECTOR_COUNT
-    STAGE2_SECTOR_COUNT equ 12      ; Default size (overridden by Makefile)
+    STAGE2_SECTOR_COUNT equ 32      ; Default size (overridden by Makefile)
 %endif
 
 ; ------------------------------------------------------------------------------
@@ -46,13 +46,6 @@ main:
     
     ; 5. Save Boot Drive Number (passed by BIOS in DL)
     mov [boot_drive], dl
-    
-    ; 6. UI: Clear Screen and Print Banner
-    mov ax, 0x0003  ; AH=00 (Set Video Mode), AL=03 (80x25 Text)
-    int 0x10
-    
-    mov si, msg_stage1
-    call print_string
 
     ; --------------------------------------------------------------------------
     ; Disk Read Strategy: Try LBA (Extended) -> Fallback to CHS (Standard)
@@ -81,14 +74,9 @@ main:
     jnc .boot_success           ; If success, jump to payload
 
     ; Fall through to CHS if LBA fails
-    mov si, msg_lba_fail
-    call print_string
 
 .use_chs_method:
     ; === CHS Method ===
-    mov si, msg_chs_mode
-    call print_string
-
     ; Reset Disk
     mov ah, 0x00
     mov dl, [boot_drive]
@@ -114,11 +102,6 @@ main:
     ; Error Handling
     ; --------------------------------------------------------------------------
 .disk_error:
-    mov si, msg_disk_err
-    call print_string
-    ; Print Error Code (in AH)
-    mov al, ah
-    call print_hex
     cli
     hlt
 
@@ -126,9 +109,6 @@ main:
     ; Handover
     ; --------------------------------------------------------------------------
 .boot_success:
-    mov si, msg_success
-    call print_string
-    
     ; Restore Segment Registers (ES was modified)
     xor ax, ax
     mov es, ax

@@ -14,7 +14,7 @@ bits 16
 org 0x8000                  ; Loaded here by Stage 1
 
 %ifndef STAGE2_SECTOR_COUNT
-    STAGE2_SECTOR_COUNT equ 12
+    STAGE2_SECTOR_COUNT equ 32
 %endif
 
 ; ------------------------------------------------------------------------------
@@ -64,8 +64,8 @@ stage2_main:
     cmp ax, 1
     je .a20_success
     call ui_status_a20_fail
-    mov si, msg_a20_fail
-    call ui_fatal_print_string
+    mov si, msg_ar_err_a20
+    call ui_fatal_print_u16
     jmp .halt_cpu
 
 .a20_success:
@@ -181,8 +181,8 @@ stage2_main:
 
 .bad_magic:
     call ui_status_hdr_fail
-    mov si, msg_bad_magic
-    call ui_fatal_print_string
+    mov si, msg_ar_err_hdr
+    call ui_fatal_print_u16
     jmp .halt_cpu
 
 .halt_cpu:
@@ -377,12 +377,36 @@ read_sectors_universal:
     call ui_status_kernel_fail
     ; Force a visible fatal message even in Quiet/Splash mode.
     mov al, ah
-    push ax
+    push ax                 ; save error code
+
     call ui_fatal_prepare
-    mov si, msg_disk_err
-    call print_string
-    pop ax
-    call print_hex
+
+    mov si, msg_ar_err_disk
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 80
+    mov bl, 0x0C            ; red
+    call gfx_write_u16_rtl
+
+    mov si, msg_ar_err_code
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 96
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
+
+    mov si, msg_ascii_0x
+    mov ax, 8
+    mov dx, 112
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_ascii_ltr
+
+    pop ax                  ; AL=error
+    mov ah, al
+    mov ax, 24              ; x after "0x"
+    mov al, ah
+    mov dx, 112
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_hex8_ltr
+
     cli
     hlt
 
@@ -1596,21 +1620,54 @@ ui_checksum_verify:
 
 .fatal:
     call ui_fatal_prepare
-    mov si, msg_checksum_mismatch
-    call print_string
 
-    mov si, msg_checksum_expected
-    call print_string
+    mov si, msg_ar_err_checksum
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 64
+    mov bl, 0x0C            ; red
+    call gfx_write_u16_rtl
+
+    mov si, msg_ar_expected
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 96
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
+
+    mov si, msg_ascii_0x
+    mov ax, 8
+    mov dx, 96
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_ascii_ltr
+
     mov eax, [kernel_checksum_expected]
-    call print_hex32
+    mov ax, 24
+    mov dx, 96
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_hex32_ltr
 
-    mov si, msg_checksum_actual_str
-    call print_string
+    mov si, msg_ar_actual
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 112
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
+
+    mov si, msg_ascii_0x
+    mov ax, 8
+    mov dx, 112
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_ascii_ltr
+
     mov eax, [kernel_checksum_actual]
-    call print_hex32
+    mov ax, 24
+    mov dx, 112
+    mov bl, GFX_TEXT_COLOR
+    call gfx_write_hex32_ltr
 
-    mov si, msg_checksum_halt
-    call print_string
+    mov si, msg_ar_halt
+    mov ax, UI_GFX_RIGHT_X
+    mov dx, 144
+    mov bl, GFX_DIM_COLOR
+    call gfx_write_u16_rtl
 
     cli
     hlt
@@ -2105,46 +2162,482 @@ gfx_vline:
     pop ax
     ret
 
-; Compute CX = strlen(DS:SI) (null-terminated).
-bios_strlen:
-    push ax
-    push si
-    xor cx, cx
-.loop:
-    lodsb
-    test al, al
-    jz .done
-    inc cx
-    jmp .loop
-.done:
-    pop si
-    pop ax
-    ret
-
-; Write DS:SI string at text-cell (DH=row, DL=col) in graphics mode (uses BIOS font).
-; BL = foreground color.
-bios_write_string_gfx:
+; Fill a rectangle: (AX=x, DX=y, CX=w, SI=h), color BL.
+gfx_fill_rect:
     push ax
     push bx
     push cx
     push dx
     push si
+    push di
     push bp
     push es
 
-    call bios_strlen
+    mov di, ax              ; x
 
-    mov ax, ds
+    mov ax, GFX_SEG
     mov es, ax
-    mov bp, si
 
-    mov ah, 0x13
-    mov al, 0x00            ; don't move cursor
-    mov bh, 0x00
-    int 0x10
+    mov ax, dx              ; y
+    mul word [gfx_pitch]    ; DX:AX = y*pitch
+    add ax, di              ; + x
+    mov di, ax
+
+    mov al, bl              ; color
+    mov bx, cx              ; width
+    mov bp, si              ; height
+
+.row:
+    mov cx, bx
+    rep stosb
+    add di, GFX_WIDTH
+    sub di, bx
+    dec bp
+    jnz .row
 
     pop es
     pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Draw an 8x16 glyph from boot_font_8x16 at (AX=x, DX=y).
+; Input: BH=glyph index, BL=color.
+gfx_draw_glyph_8x16:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push es
+
+    mov di, ax              ; x
+
+    ; SI = &boot_font_8x16[glyph*16]
+    mov si, boot_font_8x16
+    xor ax, ax
+    mov al, bh
+    shl ax, 4               ; *16
+    add si, ax
+
+    ; DI = y*pitch + x
+    mov ax, GFX_SEG
+    mov es, ax
+
+    mov ax, dx              ; y
+    mul word [gfx_pitch]
+    add ax, di
+    mov di, ax
+
+    mov cx, GFX_FONT_H      ; 16 rows
+.row:
+    mov al, [si]
+    mov dl, 8
+.bit:
+    shl al, 1               ; MSB first
+    jnc .skip
+    mov [es:di], bl
+.skip:
+    inc di
+    dec dl
+    jnz .bit
+
+    add di, GFX_WIDTH - GFX_FONT_W
+    inc si
+    loop .row
+
+    pop es
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Write a null-terminated ASCII string left-to-right at (AX=x, DX=y), color BL.
+; Input: DS:SI=string.
+gfx_write_ascii_ltr:
+    push ax
+    push bx
+    push dx
+    push si
+    push di
+
+    mov di, ax              ; cursor x
+
+.loop:
+    lodsb
+    test al, al
+    jz .done
+
+    mov bh, al
+    mov ax, di
+    call gfx_draw_glyph_8x16
+    add di, GFX_FONT_W
+    jmp .loop
+
+.done:
+    pop di
+    pop si
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+; Write AL as 2 hex digits (upper-case) left-to-right at (AX=x, DX=y), color BL.
+; Output: AX = updated x after the two digits.
+gfx_write_hex8_ltr:
+    push bx
+    push dx
+    push di
+
+    mov di, ax              ; cursor x
+    mov ah, al              ; save byte
+
+    mov al, ah
+    shr al, 4
+    call gfx_write_hex_nibble_ltr
+
+    mov al, ah
+    and al, 0x0F
+    call gfx_write_hex_nibble_ltr
+
+    mov ax, di              ; updated x
+
+    pop di
+    pop dx
+    pop bx
+    ret
+
+; Write EAX as 8 hex digits left-to-right at (AX=x, DX=y), color BL.
+; Output: AX = updated x after the eight digits.
+gfx_write_hex32_ltr:
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    mov [tmp_dword], eax
+    mov di, ax              ; cursor x
+
+    mov si, tmp_dword+3
+    mov cx, 4
+.loop:
+    mov al, [si]
+    mov ax, di
+    call gfx_write_hex8_ltr
+    mov di, ax
+    dec si
+    loop .loop
+
+    mov ax, di              ; updated x
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+; Helper: write one hex nibble in AL at (DI=x, DX=y), color BL.
+; Updates DI by +8.
+gfx_write_hex_nibble_ltr:
+    cmp al, 9
+    jbe .digit
+    add al, ('A' - 10)
+    jmp .emit
+.digit:
+    add al, '0'
+.emit:
+    mov bh, al
+    mov ax, di
+    call gfx_draw_glyph_8x16
+    add di, GFX_FONT_W
+    ret
+
+; CF=1 if AX is an ASCII digit (0-9) or Arabic-Indic digit (0660-0669).
+gfx_u16_is_digit:
+    cmp ax, 0x0030
+    jb .check_ar
+    cmp ax, 0x0039
+    jbe .yes
+.check_ar:
+    cmp ax, 0x0660
+    jb .no
+    cmp ax, 0x0669
+    jbe .yes
+.no:
+    clc
+    ret
+.yes:
+    stc
+    ret
+
+; Find an Arabic shaping entry in ar_form_table for AX=codepoint.
+; Output: CF=0 found and DI points to entry; CF=1 not found.
+ar_find_entry:
+    push cx
+
+    mov di, ar_form_table
+    mov cx, ar_form_count
+.loop:
+    cmp ax, [di]
+    je .found
+    add di, AR_FORM_ENTRY_SIZE
+    loop .loop
+
+    stc
+    pop cx
+    ret
+
+.found:
+    clc
+    pop cx
+    ret
+
+; Find a Lam-Alef ligature entry for AX=alef_variant_cp.
+; Output: CF=0 found and DI points to entry; CF=1 not found.
+ar_find_lamalef:
+    push cx
+
+    mov di, ar_lamalef_table
+    mov cx, ar_lamalef_count
+.loop:
+    cmp ax, [di]
+    je .found
+    add di, 4
+    loop .loop
+
+    stc
+    pop cx
+    ret
+
+.found:
+    clc
+    pop cx
+    ret
+
+; Write a 0-terminated UTF-16LE string right-to-left at (AX=x, DX=y), color BL.
+; Arabic letters are shaped and rendered using Presentation Forms-B glyphs.
+; Digits are rendered in LTR order within the RTL line.
+gfx_write_u16_rtl:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+
+    mov [gfx_cursor_x], ax
+    mov bp, dx              ; y
+    mov [gfx_text_color], bl
+    mov byte [ar_prev_type], 0
+
+.next_cp:
+    mov ax, [si]
+    test ax, ax
+    jz .done
+
+    call gfx_u16_is_digit
+    jc .digit_run
+
+    ; Lam-Alef ligature: LAM (0644) + Alef variant.
+    cmp ax, 0x0644
+    jne .not_lam
+    mov dx, [si+2]
+    test dx, dx
+    jz .not_lam
+    mov ax, dx
+    call ar_find_lamalef
+    jc .not_lam
+
+    ; connect_prev if previous was dual-joining.
+    mov al, [ar_prev_type]
+    cmp al, 'D'
+    jne .lam_iso
+    mov bh, [di+3]          ; fin_low
+    jmp .lam_emit
+.lam_iso:
+    mov bh, [di+2]          ; iso_low
+.lam_emit:
+    mov bl, [gfx_text_color]
+    mov ax, [gfx_cursor_x]
+    mov dx, bp
+    call gfx_draw_glyph_8x16
+    sub word [gfx_cursor_x], GFX_FONT_W
+
+    add si, 4               ; consume LAM + Alef
+    mov byte [ar_prev_type], 0
+    jmp .next_cp
+
+.not_lam:
+    ; Arabic shaping entry?
+    mov ax, [si]
+    call ar_find_entry
+    jc .non_arabic
+
+    mov dl, [di+2]          ; curr_type ('D','R','U')
+    mov cl, dl              ; preserve across draws (DX is reused for Y)
+
+    ; connect_prev -> DH (0/1)
+    xor dh, dh
+    mov al, [ar_prev_type]
+    cmp al, 'D'
+    jne .cp_done
+    cmp dl, 'D'
+    je .cp_yes
+    cmp dl, 'R'
+    jne .cp_done
+.cp_yes:
+    mov dh, 1
+.cp_done:
+
+    ; connect_next -> AL (0/1)
+    xor al, al
+    cmp dl, 'D'             ; only dual-joining connects left
+    jne .cn_done
+    mov ax, [si+2]
+    test ax, ax
+    jz .cn_done
+
+    push di                 ; save current entry pointer
+    call ar_find_entry
+    jc .cn_restore
+
+    mov ah, [di+2]          ; next_type
+    cmp ah, 'D'
+    je .cn_yes
+    cmp ah, 'R'
+    jne .cn_restore
+.cn_yes:
+    mov al, 1
+.cn_restore:
+    pop di                  ; restore current entry pointer
+.cn_done:
+
+    ; Select form byte -> BH.
+    mov bh, [di+3]          ; iso_low
+    test dh, dh
+    jz .no_prev
+    test al, al
+    jnz .use_med
+    mov bh, [di+4]          ; fin_low
+    jmp .emit
+.use_med:
+    mov bh, [di+6]          ; med_low
+    jmp .emit
+.no_prev:
+    test al, al
+    jz .emit
+    mov bh, [di+5]          ; ini_low
+
+.emit:
+    cmp bh, 0
+    jne .draw
+    mov bh, [di+3]          ; fallback iso_low
+
+.draw:
+    mov bl, [gfx_text_color]
+    mov ax, [gfx_cursor_x]
+    mov dx, bp
+    call gfx_draw_glyph_8x16
+    sub word [gfx_cursor_x], GFX_FONT_W
+
+    add si, 2
+    mov [ar_prev_type], cl
+    jmp .next_cp
+
+.non_arabic:
+    mov ax, [si]
+
+    ; Bidi mirroring for parentheses in RTL.
+    cmp ax, 0x0028
+    jne .chk_rparen
+    mov bh, 0x29
+    jmp .na_emit
+.chk_rparen:
+    cmp ax, 0x0029
+    jne .na_map
+    mov bh, 0x28
+    jmp .na_emit
+
+.na_map:
+    cmp ax, 0x0100
+    jb .na_low
+    mov bh, 0x3F            ; '?'
+    jmp .na_emit
+.na_low:
+    mov bh, al
+
+.na_emit:
+    mov bl, [gfx_text_color]
+    mov ax, [gfx_cursor_x]
+    mov dx, bp
+    call gfx_draw_glyph_8x16
+    sub word [gfx_cursor_x], GFX_FONT_W
+
+    add si, 2
+    mov byte [ar_prev_type], 0
+    jmp .next_cp
+
+.digit_run:
+    ; Scan full digit run.
+    mov di, si              ; scan ptr
+    xor cx, cx              ; len
+.scan:
+    mov ax, [di]
+    test ax, ax
+    jz .scanned
+    call gfx_u16_is_digit
+    jnc .scanned
+    add di, 2
+    inc cx
+    jmp .scan
+.scanned:
+    ; DI = run_end, CX = len
+    push di                 ; save run_end
+    sub di, 2               ; last digit
+
+.draw_digits:
+    test cx, cx
+    jz .digits_done
+
+    mov ax, [di]
+    cmp ax, 0x0660
+    jb .ascii_digit
+    sub ax, 0x0660
+    add al, 0x10            ; Arabic-Indic glyphs at 0x10..0x19
+    mov bh, al
+    jmp .d_emit
+.ascii_digit:
+    mov bh, al
+.d_emit:
+    mov bl, [gfx_text_color]
+    mov ax, [gfx_cursor_x]
+    mov dx, bp
+    call gfx_draw_glyph_8x16
+    sub word [gfx_cursor_x], GFX_FONT_W
+
+    sub di, 2
+    dec cx
+    jmp .draw_digits
+
+.digits_done:
+    pop si                  ; SI = run_end
+    mov byte [ar_prev_type], 0
+    jmp .next_cp
+
+.done:
+    pop bp
+    pop di
     pop si
     pop dx
     pop cx
@@ -2377,7 +2870,9 @@ ui_spin_idx:    db 0
 ui_gfx:         db 0
 dec_base:       dw 10
 gfx_pitch:      dw GFX_WIDTH
-ui_wait_buf:    db '30', 0
+gfx_cursor_x:   dw 0
+gfx_text_color: db 0
+ar_prev_type:   db 0
 tmp_dword:      dd 0
 
 e820_entry_count: dw 0
@@ -2402,6 +2897,7 @@ msg_hdr_ok:      db 'Header OK', 13, 10, 0
 msg_bad_magic:   db 'Bad Magic', 0
 msg_kernel_ok:   db 'Kernel Loaded', 13, 10, 0
 msg_disk_err:    db 'Disk Err:', 0
+msg_ascii_0x:    db '0x', 0
 
 ; UI strings (Tier 1)
 msg_ui_title:     db 'PyramidOS Bootloader (Stage 2)', 0
@@ -2446,6 +2942,13 @@ msg_checksum_expected:    db 'Expected: 0x', 0
 msg_checksum_actual_str:  db 13, 10, 'Actual:   0x', 0
 msg_checksum_halt:        db 13, 10, 'Halting.', 0
 
+; ---------------------------------------------------------------------------
+; Arabic UI + Shaping Tables + Bitmap Font
+; ---------------------------------------------------------------------------
+%include "arabic_strings.inc"
+%include "arabic_forms.inc"
+%include "boot_font_8x16.inc"
+
 ; Disk Address Packet
 align 4
 dap:
@@ -2471,4 +2974,4 @@ gdt_descriptor:
     dw gdt_end - gdt_start - 1
     dd gdt_start
 
-times 6144-($-$$) db 0     ; Pad Stage 2 to 12 sectors (room for Tier1 UI)
+times (STAGE2_SECTOR_COUNT*512)-($-$$) db 0

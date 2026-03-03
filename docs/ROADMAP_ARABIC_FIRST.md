@@ -25,10 +25,10 @@
 
 | Feature | Status | Notes |
 | :--- | :---: | :--- |
-| **Arabic Splash Branding (Mode 13h)** | 📅 | Show Arabic wordmark/logo + Arabic status labels (loaded/verified/failed) in graphics mode. |
-| **Arabic Boot Menu** | 📅 | Arabic-first menu text; keep a hidden English/dev option if needed. |
-| **Arabic “Press Enter to Skip” + Countdown** | 📅 | Arabic string + digits rendering (Arabic-Indic optional). |
-| **Arabic Fatal Screen** | 📅 | If kernel fails to load/verify, show an Arabic error screen in graphics mode; only fall back to numeric error codes if absolutely required. |
+| **Arabic Splash Branding (Mode 13h)** | ✅ | Arabic title/subtitle + splash layout in graphics mode. |
+| **Arabic Boot Menu** | ✅ | Arabic-first menu text (F8). |
+| **Arabic “Press Enter to Skip” + Countdown** | ✅ | 30s countdown + ENTER to skip (digits rendered correctly). |
+| **Arabic Fatal Screen** | ✅ | Arabic fatal screens in graphics mode (with hex codes where needed). |
 | **Tier 3 VBE Splash (Arabic-ready)** | 🔮 | High-res splash/installer UI with Arabic layout; robust fallback required. |
 
 ---
@@ -133,4 +133,3 @@
 | **KShell is usable in Arabic** | 📅 | Arabic commands + help + errors. |
 | **Filesystem handles Arabic filenames** | 📅 | Create/list/open UTF-8 Arabic names without corruption. |
 | **GUI is RTL-native** | 🔮 | Desktop widgets and text are Arabic-first everywhere. |
-
